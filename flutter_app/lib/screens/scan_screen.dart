@@ -19,16 +19,16 @@ class _ScanScreenState extends State<ScanScreen> {
   final _codeController = TextEditingController();
   final _catatanController = TextEditingController();
   final _scrollController = ScrollController();
-  
+
   bool _cameraActive = false;
   MobileScannerController? _scannerController;
-  
+
   Barang? _selectedBarang;
   String _kondisiTemuan = 'Baik';
   File? _fotoBukti;
   bool _isSearching = false;
   bool _isSubmitting = false;
-  
+
   // Check status
   bool _alreadyChecked = false;
   String _checkInfo = '';
@@ -168,7 +168,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    
+
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -226,10 +226,11 @@ class _ScanScreenState extends State<ScanScreen> {
   Future<void> _submitPengecekan() async {
     if (_selectedBarang == null) return;
 
-    if ((_kondisiTemuan == 'Rusak' || _kondisiTemuan == 'Hilang') && _fotoBukti == null) {
+    // Foto bukti hanya wajib untuk kondisi "Rusak".
+    if (_kondisiTemuan == 'Rusak' && _fotoBukti == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Foto bukti wajib dilampirkan untuk kondisi Rusak/Hilang!'),
+          content: const Text('Foto bukti wajib dilampirkan untuk kondisi Rusak!'),
           backgroundColor: const Color(0xFFEF4444),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -244,7 +245,8 @@ class _ScanScreenState extends State<ScanScreen> {
       idBarang: _selectedBarang!.id,
       kondisiTemuan: _kondisiTemuan,
       catatan: _catatanController.text.trim(),
-      fotoBukti: _fotoBukti,
+      // Foto hanya dikirim jika kondisi Rusak (Hilang tidak pernah mengirim foto).
+      fotoBukti: _kondisiTemuan == 'Rusak' ? _fotoBukti : null,
     );
 
     if (!mounted) return;
@@ -354,7 +356,7 @@ class _ScanScreenState extends State<ScanScreen> {
                 ],
               ),
             ),
-          
+
           if (!_hasPeriode)
             Container(
               padding: const EdgeInsets.all(14),
@@ -750,8 +752,8 @@ class _ScanScreenState extends State<ScanScreen> {
                   ],
                 ),
 
-                // Photo upload
-                if (_kondisiTemuan == 'Rusak' || _kondisiTemuan == 'Hilang') ...[
+                // Photo upload — HANYA untuk kondisi "Rusak".
+                if (_kondisiTemuan == 'Rusak') ...[
                   const SizedBox(height: 16),
                   Text(
                     'Lampirkan Foto Bukti *',
@@ -811,7 +813,7 @@ class _ScanScreenState extends State<ScanScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Melampirkan foto bukti kondisi fisik wajib untuk temuan barang rusak atau hilang.',
+                    'Melampirkan foto bukti kondisi fisik wajib untuk temuan barang rusak.',
                     style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFFEF4444), fontWeight: FontWeight.w600),
                   ),
                 ],
@@ -898,7 +900,8 @@ class _ScanScreenState extends State<ScanScreen> {
         onTap: () {
           setState(() {
             _kondisiTemuan = label;
-            if (label == 'Baik') {
+            // Foto bukti cuma relevan untuk "Rusak" — reset kalau pindah ke kondisi lain.
+            if (label != 'Rusak') {
               _fotoBukti = null;
             }
           });
