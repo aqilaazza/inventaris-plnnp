@@ -7,13 +7,13 @@ class ApiConfig {
   /// - HP Android Fisik -> Ganti dengan IP komputer Anda (misal: http://192.168.1.10/inventaris)
   static String get baseUrl {
     if (kIsWeb) {
-      return 'http://localhost/inventaris';
+      return 'http://localhost/inventaris-plnnp';
     }
     // Untuk Android Emulator default 10.0.2.2, namun jika dijalankan di Windows Desktop pake localhost
     if (defaultTargetPlatform == TargetPlatform.windows || 
         defaultTargetPlatform == TargetPlatform.macOS || 
         defaultTargetPlatform == TargetPlatform.linux) {
-      return 'http://localhost/inventaris';
+      return 'http://localhost/inventaris-plnnp';
     }
     return 'http://10.0.2.2/inventaris';
   }
