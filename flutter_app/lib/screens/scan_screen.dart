@@ -36,6 +36,209 @@ class ScanScreen extends StatefulWidget {
   State<ScanScreen> createState() => _ScanScreenState();
 }
 
+class _SuccessDialogContent extends StatefulWidget {
+  final String message;
+  final String title;
+  const _SuccessDialogContent({
+    required this.message,
+    this.title = 'Berhasil!',
+  });
+
+  @override
+  State<_SuccessDialogContent> createState() => _SuccessDialogContentState();
+}
+
+class _SuccessDialogContentState extends State<_SuccessDialogContent>
+    with TickerProviderStateMixin {
+  late final AnimationController _circleController;
+  late final AnimationController _checkController;
+  late final AnimationController _textController;
+  late final AnimationController _progressController;
+
+  late final Animation<double> _circleScale;
+  late final Animation<double> _checkScale;
+  late final Animation<double> _textFade;
+  late final Animation<Offset> _textSlide;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _circleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
+    _checkController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _textController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _progressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    );
+
+    _circleScale = CurvedAnimation(parent: _circleController, curve: Curves.elasticOut);
+    _checkScale = CurvedAnimation(parent: _checkController, curve: Curves.easeOutBack);
+    _textFade = CurvedAnimation(parent: _textController, curve: Curves.easeOut);
+    _textSlide = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _textController, curve: Curves.easeOutCubic));
+
+    _circleController.forward();
+    Future.delayed(const Duration(milliseconds: 280), () {
+      if (mounted) _checkController.forward();
+    });
+    Future.delayed(const Duration(milliseconds: 380), () {
+      if (mounted) _textController.forward();
+    });
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _progressController.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _circleController.dispose();
+    _checkController.dispose();
+    _textController.dispose();
+    _progressController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 48),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 300),
+          padding: const EdgeInsets.fromLTRB(24, 36, 24, 24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: _C.success.withValues(alpha: 0.18),
+                blurRadius: 40,
+                offset: const Offset(0, 16),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Circle dengan glow + gradient
+              ScaleTransition(
+                scale: _circleScale,
+                child: Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF34D399), _C.success],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _C.success.withValues(alpha: 0.35),
+                        blurRadius: 28,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: ScaleTransition(
+                      scale: _checkScale,
+                      child: Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.18),
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          color: Colors.white,
+                          size: 38,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 22),
+
+              FadeTransition(
+                opacity: _textFade,
+                child: SlideTransition(
+                  position: _textSlide,
+                  child: Column(
+                    children: [
+                     Text(
+                        widget.title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                          color: _C.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.message,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13.5,
+                          height: 1.5,
+                          color: _C.inkSoft,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Progress bar tipis penanda auto-close
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  height: 4,
+                  width: double.infinity,
+                  child: AnimatedBuilder(
+                    animation: _progressController,
+                    builder: (_, __) => LinearProgressIndicator(
+                      value: _progressController.value,
+                      backgroundColor: _C.line,
+                      valueColor: const AlwaysStoppedAnimation(_C.success),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ScanScreenState extends State<ScanScreen> {
   final _codeController = TextEditingController();
   final _catatanController = TextEditingController();
@@ -324,6 +527,34 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
+  Future<void> _showSuccessDialog(String message) async {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'success',
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      transitionDuration: const Duration(milliseconds: 450),
+      pageBuilder: (ctx, anim1, anim2) => _SuccessDialogContent(message: message),
+      transitionBuilder: (ctx, anim, secondaryAnim, child) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: 6 * anim.value,
+            sigmaY: 6 * anim.value,
+          ),
+          child: FadeTransition(
+            opacity: anim,
+            child: child,
+          ),
+        );
+      },
+    );
+
+    await Future.delayed(const Duration(milliseconds: 2000));
+    if (mounted && Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+  }
+
   Future<void> _submitPengecekan() async {
     if (_selectedBarang == null) return;
 
@@ -345,7 +576,8 @@ class _ScanScreenState extends State<ScanScreen> {
     setState(() => _isSubmitting = false);
 
     if (result['success'] == true) {
-      _showSnack(result['message'] ?? 'Berhasil!', _C.success, Icons.check_circle_rounded);
+      await _showSuccessDialog(result['message'] ?? 'Pengecekan berhasil dikirim.');
+      if (!mounted) return;
       setState(() {
         _selectedBarang = null;
         _fotoBukti = null;
