@@ -37,7 +37,8 @@ class _KalenderRiwayatPopupState extends State<_KalenderRiwayatPopup> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  // Semua data yang sudah diambil, dikelompokkan per tanggal (yyyy-MM-dd)
+  // Data HANYA untuk bulan yang sedang dibuka, dikelompokkan per tanggal
+  // (yyyy-MM-dd). Diambil ulang dari API setiap kali _bulanAktif berubah
   Map<String, List<Pengecekan>> _grouped = {};
 
   DateTime _bulanAktif = DateTime(DateTime.now().year, DateTime.now().month, 1);
@@ -46,20 +47,24 @@ class _KalenderRiwayatPopupState extends State<_KalenderRiwayatPopup> {
   @override
   void initState() {
     super.initState();
-    _loadSemuaData();
+    _loadDataUntukBulan(_bulanAktif);
   }
 
   String _dateKey(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
 
-  Future<void> _loadSemuaData() async {
+  Future<void> _loadDataUntukBulan(DateTime bulan) async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-    // Catatan: API getRiwayat belum punya filter rentang tanggal,
-    // jadi sementara ambil dengan limit besar lalu dikelompokkan di sisi Flutter.
-    final result = await ApiService.getRiwayat(page: 1, limit: 1000, search: '');
+    // Hanya minta data bulan+tahun yang sedang aktif ke API, bukan semua
+    // riwayat sekaligus. Ini menghindari limit fetch besar (mis. 1000 baris)
+    // yang bisa kepotong kalau data sudah menumpuk bertahun-tahun.
+    final result = await ApiService.getRiwayatKalender(
+      bulan: bulan.month,
+      tahun: bulan.year,
+    );
 
     if (!mounted) return;
 
@@ -79,6 +84,7 @@ class _KalenderRiwayatPopupState extends State<_KalenderRiwayatPopup> {
       });
     } else {
       setState(() {
+        _grouped = {};
         _isLoading = false;
         _errorMessage = result['message'] ?? 'Gagal memuat data';
       });
@@ -108,7 +114,14 @@ class _KalenderRiwayatPopupState extends State<_KalenderRiwayatPopup> {
   }
 
   void _gantiBulan(int delta) {
-    setState(() => _bulanAktif = DateTime(_bulanAktif.year, _bulanAktif.month + delta, 1));
+    final bulanBaru = DateTime(_bulanAktif.year, _bulanAktif.month + delta, 1);
+    setState(() {
+      _bulanAktif = bulanBaru;
+      // Reset tanggal dipilih ke tanggal 1 di bulan baru (data bulan lama
+      // sudah tidak dimuat lagi, jadi tanggal lama tidak relevan lagi).
+      _tanggalDipilih = bulanBaru;
+    });
+    _loadDataUntukBulan(bulanBaru);
   }
 
   @override
@@ -124,35 +137,39 @@ class _KalenderRiwayatPopupState extends State<_KalenderRiwayatPopup> {
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
           ),
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: _primary))
-              : _errorMessage != null
-                  ? _buildErrorState()
-                  : ListView(
-                      controller: scrollController,
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                      children: [
-                        Center(
-                          child: Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFD1D5DB),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Kalender Riwayat',
-                          style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w800, color: _textDark),
-                        ),
-                        const SizedBox(height: 14),
-                        _buildKalender(),
-                        const SizedBox(height: 18),
-                        _buildDaftarAktivitas(),
-                      ],
-                    ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD1D5DB),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Kalender Riwayat',
+                style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w800, color: _textDark),
+              ),
+              const SizedBox(height: 14),
+              _buildKalender(),
+              const SizedBox(height: 18),
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: Center(child: CircularProgressIndicator(color: _primary)),
+                )
+              else if (_errorMessage != null)
+                _buildErrorState()
+              else
+                _buildDaftarAktivitas(),
+            ],
+          ),
         );
       },
     );
@@ -174,7 +191,7 @@ class _KalenderRiwayatPopupState extends State<_KalenderRiwayatPopup> {
             ),
             const SizedBox(height: 14),
             ElevatedButton(
-              onPressed: _loadSemuaData,
+              onPressed: () => _loadDataUntukBulan(_bulanAktif),
               style: ElevatedButton.styleFrom(backgroundColor: _primary),
               child: Text('Coba Lagi', style: GoogleFonts.inter(color: Colors.white)),
             ),
@@ -198,7 +215,7 @@ class _KalenderRiwayatPopupState extends State<_KalenderRiwayatPopup> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
-              onPressed: () => _gantiBulan(-1),
+              onPressed: _isLoading ? null : () => _gantiBulan(-1),
               icon: const Icon(Icons.chevron_left_rounded, color: _primary),
             ),
             Text(
@@ -206,7 +223,7 @@ class _KalenderRiwayatPopupState extends State<_KalenderRiwayatPopup> {
               style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800, color: _textDark),
             ),
             IconButton(
-              onPressed: () => _gantiBulan(1),
+              onPressed: _isLoading ? null : () => _gantiBulan(1),
               icon: const Icon(Icons.chevron_right_rounded, color: _primary),
             ),
           ],
