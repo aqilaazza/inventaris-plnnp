@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -5,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../services/api_service.dart';
 import '../config/api_config.dart';
 import '../models/pengecekan.dart';
+import 'kalender_riwayat_popup.dart';
 
 class RiwayatScreen extends StatefulWidget {
   const RiwayatScreen({super.key});
@@ -13,13 +15,29 @@ class RiwayatScreen extends StatefulWidget {
   State<RiwayatScreen> createState() => _RiwayatScreenState();
 }
 
+enum _FilterKondisi { semua, baik, perhatian }
+
 class _RiwayatScreenState extends State<RiwayatScreen> {
   final _searchController = TextEditingController();
+  Timer? _debounce;
   List<Pengecekan> _items = [];
   bool _isLoading = true;
   int _currentPage = 1;
   int _totalPages = 1;
   int _totalItems = 0;
+
+  _FilterKondisi _filter = _FilterKondisi.semua;
+
+  static const _primary = Color(0xFF4F46E5);
+  static const _primaryLight = Color(0xFFEEF2FF);
+  static const _green = Color(0xFF10B981);
+  static const _greenLight = Color(0xFFECFDF5);
+  static const _orange = Color(0xFFF59E0B);
+  static const _red = Color(0xFFEF4444);
+  static const _bg = Color(0xFFF3F4F6);
+  static const _textDark = Color(0xFF111827);
+  static const _textGrey = Color(0xFF6B7280);
+  static const _textMuted = Color(0xFF9CA3AF);
 
   @override
   void initState() {
@@ -29,8 +47,21 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  // Dipanggil setiap kali teks di search bar berubah.
+  // setState() di sini bikin tombol X langsung muncul/hilang real-time.
+  // Timer debounce mencegah API dipanggil di setiap ketukan huruf —
+  // baru benar-benar cari setelah user berhenti mengetik selama 500ms.
+  void _onSearchChanged(String value) {
+    setState(() {}); // refresh tampilan tombol clear (X)
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _loadRiwayat();
+    });
   }
 
   Future<void> _loadRiwayat({int page = 1}) async {
@@ -58,6 +89,40 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     }
   }
 
+  // Data yang sudah difilter kondisi (client-side, dari halaman yang sedang dimuat)
+  List<Pengecekan> get _filteredItems {
+    switch (_filter) {
+      case _FilterKondisi.baik:
+        return _items.where((e) => e.kondisiTemuan == 'Baik').toList();
+      case _FilterKondisi.perhatian:
+        return _items.where((e) => e.kondisiTemuan != 'Baik').toList();
+      case _FilterKondisi.semua:
+        return _items;
+    }
+  }
+
+  // Perkiraan "Aset Baik" dari data yang sudah termuat di halaman ini.
+  // Catatan: bukan total keseluruhan karena backend belum expose summary count.
+  int get _asetBaikCount => _items.where((e) => e.kondisiTemuan == 'Baik').length;
+
+  String _relativeDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return '-';
+    try {
+      final dt = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final target = DateTime(dt.year, dt.month, dt.day);
+      final diff = today.difference(target).inDays;
+
+      if (diff == 0) return DateFormat('HH:mm').format(dt);
+      if (diff == 1) return 'Kemarin';
+      if (diff < 7) return '$diff Hari Lalu';
+      return DateFormat('d MMM yyyy').format(dt);
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
   String _formatDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '-';
     try {
@@ -71,24 +136,24 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   Color _kondisiColor(String kondisi) {
     switch (kondisi) {
       case 'Baik':
-        return const Color(0xFF10B981);
+        return _green;
       case 'Rusak':
-        return const Color(0xFFF59E0B);
+        return _orange;
       case 'Hilang':
-        return const Color(0xFFEF4444);
+        return _red;
       default:
-        return const Color(0xFF6B7280);
+        return _textGrey;
     }
   }
 
   Color _reviewColor(String status) {
     switch (status) {
       case 'disetujui':
-        return const Color(0xFF10B981);
+        return _green;
       case 'ditolak':
-        return const Color(0xFFEF4444);
+        return _red;
       default:
-        return const Color(0xFFF59E0B);
+        return _orange;
     }
   }
 
@@ -105,196 +170,290 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final periodeLabel = DateFormat('MMMM yyyy', 'id_ID').format(DateTime.now());
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
+      backgroundColor: _bg,
       appBar: AppBar(
         title: Text(
-          'Inventaris',
+          'Riwayat',
           style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 20),
         ),
         centerTitle: true,
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF4F46E5),
+        foregroundColor: _primary,
         elevation: 0,
         scrolledUnderElevation: 1,
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Text(
-              'Riwayat Pengecekan Saya',
-              style: GoogleFonts.inter(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF1F2937),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Search & Filter Card
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      body: SafeArea(
+        child: _isLoading && _items.isEmpty
+            ? const Center(child: CircularProgressIndicator(color: _primary))
+            : RefreshIndicator(
+                onRefresh: () => _loadRiwayat(page: 1),
+                color: _primary,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                   children: [
-                    const Icon(Icons.history_rounded, color: Color(0xFF4F46E5), size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Daftar Pengecekan Barang',
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF4F46E5),
-                      ),
-                    ),
+                    _buildRingkasan(periodeLabel),
+                    const SizedBox(height: 16),
+                    _buildSearchBar(),
+                    const SizedBox(height: 12),
+                    _buildFilterChips(),
+                    const SizedBox(height: 20),
+                    _buildAktivitasHeader(),
+                    const SizedBox(height: 10),
+                    if (_filteredItems.isEmpty)
+                      _buildEmptyState()
+                    else
+                      ..._filteredItems.map(_buildAktivitasItem),
+                    const SizedBox(height: 16),
+                    _buildPagination(),
                   ],
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _searchController,
-                  style: GoogleFonts.inter(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: 'Cari data...',
-                    hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF), fontSize: 13),
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF9CA3AF)),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              _loadRiwayat();
-                            },
-                          )
-                        : null,
-                    filled: true,
-                    fillColor: const Color(0xFFF9FAFB),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildRingkasan(String periodeLabel) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'RINGKASAN AKTIVITAS',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _textMuted,
+                      letterSpacing: 0.5,
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   ),
-                  onSubmitted: (_) => _loadRiwayat(),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    'Periode ${periodeLabel[0].toUpperCase()}${periodeLabel.substring(1)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _textGrey,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.bar_chart_rounded, color: Colors.white, size: 18),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSummaryCard(
+                label: 'Total Scan',
+                value: '$_totalItems',
+                color: _primary,
+                bgColor: _primaryLight,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildSummaryCard(
+                label: 'Aset Baik',
+                value: '$_asetBaikCount',
+                color: _green,
+                bgColor: _greenLight,
+                icon: Icons.check_circle_rounded,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard({
+    required String label,
+    required String value,
+    required Color color,
+    required Color bgColor,
+    IconData? icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: color),
           ),
-
-          const SizedBox(height: 12),
-
-          // List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)))
-                : _items.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.search_off_rounded, size: 60, color: Colors.grey[300]),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Data Kosong',
-                              style: GoogleFonts.inter(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF374151),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Belum ada riwayat pengecekan barang\nyang Anda lakukan.',
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF9CA3AF)),
-                            ),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () => _loadRiwayat(page: 1),
-                        color: const Color(0xFF4F46E5),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: _items.length + 1, // +1 for pagination
-                          itemBuilder: (context, index) {
-                            if (index == _items.length) {
-                              return _buildPagination();
-                            }
-                            return _buildRiwayatItem(_items[index]);
-                          },
-                        ),
-                      ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(
+                value,
+                style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w800, color: color),
+              ),
+              if (icon != null) ...[
+                const SizedBox(width: 6),
+                Icon(icon, size: 16, color: color),
+              ],
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildRiwayatItem(Pengecekan item) {
+  Widget _buildSearchBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: TextField(
+        controller: _searchController,
+        style: GoogleFonts.inter(fontSize: 13),
+        decoration: InputDecoration(
+          hintText: 'Cari Kode Aset atau Lokasi...',
+          hintStyle: GoogleFonts.inter(color: _textMuted, fontSize: 13),
+          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: _textMuted),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  onPressed: () {
+                    _debounce?.cancel();
+                    _searchController.clear();
+                    _loadRiwayat();
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        ),
+        onChanged: _onSearchChanged,
+        onSubmitted: (_) {
+          _debounce?.cancel();
+          _loadRiwayat();
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    Widget chip(String label, _FilterKondisi value) {
+      final selected = _filter == value;
+      return GestureDetector(
+        onTap: () => setState(() => _filter = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected ? _primary : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: selected ? _primary : const Color(0xFFE5E7EB)),
+          ),
+          child: Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: selected ? Colors.white : _textGrey,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          chip('Semua', _FilterKondisi.semua),
+          const SizedBox(width: 8),
+          chip('Kondisi Baik', _FilterKondisi.baik),
+          const SizedBox(width: 8),
+          chip('Perlu Perhatian', _FilterKondisi.perhatian),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAktivitasHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          'Aktivitas Terbaru',
+          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: _textDark),
+        ),
+        GestureDetector(
+          onTap: () => showKalenderRiwayatPopup(context),
+          child: Row(
+            children: [
+              Text(
+                'Lihat Kalender',
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: _primary),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.calendar_month_rounded, size: 15, color: _primary),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40),
+      child: Column(
+        children: [
+          Icon(Icons.search_off_rounded, size: 56, color: Colors.grey[300]),
+          const SizedBox(height: 12),
+          Text(
+            'Belum ada aktivitas',
+            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: const Color(0xFF374151)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAktivitasItem(Pengecekan item) {
+    final kondisiColor = _kondisiColor(item.kondisiTemuan);
+    final bermasalah = item.kondisiTemuan != 'Baik' && item.catatan.isNotEmpty;
+
     return GestureDetector(
       onTap: () => _showDetailDialog(item),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE5E7EB)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status icon
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: _kondisiColor(item.kondisiTemuan).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                item.kondisiTemuan == 'Baik'
-                    ? Icons.check_circle_rounded
-                    : item.kondisiTemuan == 'Rusak'
-                        ? Icons.warning_rounded
-                        : Icons.cancel_rounded,
-                color: _kondisiColor(item.kondisiTemuan),
-                size: 20,
-              ),
-            ),
+            _buildThumbnail(item, kondisiColor),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -304,50 +463,265 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          item.namaBarang,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF111827),
-                          ),
+                          item.kodeBarang,
+                          style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w800, color: _primary),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       Text(
-                        item.kodeBarang,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF6B7280),
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
+                        _relativeDate(item.tglPengecekan),
+                        style: GoogleFonts.inter(fontSize: 11, color: _textMuted),
                       ),
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${item.namaKategori} | ${item.namaMerk}',
-                    style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF9CA3AF)),
+                    item.namaBarang,
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: _textDark),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
-                      _buildBadge(item.kondisiTemuan, _kondisiColor(item.kondisiTemuan)),
-                      const SizedBox(width: 6),
-                      _buildReviewBadge(item.statusReview),
-                      const Spacer(),
-                      Text(
-                        _formatDate(item.tglPengecekan),
-                        style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF9CA3AF)),
+                      const Icon(Icons.location_on_rounded, size: 13, color: _textMuted),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(
+                          item.namaRuang,
+                          style: GoogleFonts.inter(fontSize: 11, color: _textGrey),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 3),
+                  if (bermasalah) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _red.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.warning_rounded, size: 12, color: _red),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              item.catatan,
+                              style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: _red),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThumbnail(Pengecekan item, Color kondisiColor) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: (item.fotoBukti != null && item.fotoBukti!.isNotEmpty)
+                ? CachedNetworkImage(
+                    imageUrl: ApiConfig.buktiImageUrl(item.fotoBukti!),
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(color: const Color(0xFFE5E7EB)),
+                    errorWidget: (_, __, ___) => Container(
+                      color: kondisiColor.withValues(alpha: 0.1),
+                      child: Icon(Icons.inventory_2_rounded, color: kondisiColor, size: 22),
+                    ),
+                  )
+                : Container(
+                    color: kondisiColor.withValues(alpha: 0.1),
+                    child: Icon(Icons.inventory_2_rounded, color: kondisiColor, size: 22),
+                  ),
+          ),
+        ),
+        Positioned(
+          top: 4,
+          left: 4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: kondisiColor,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: Text(
+              item.kondisiTemuan.toUpperCase(),
+              style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPagination() {
+    return Column(
+      children: [
+        Text(
+          'Menampilkan ${_filteredItems.length} dari $_totalItems data',
+          style: GoogleFonts.inter(fontSize: 11, color: _textMuted),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            OutlinedButton(
+              onPressed: _currentPage > 1 ? () => _loadRiwayat(page: _currentPage - 1) : null,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _primary,
+                side: const BorderSide(color: Color(0xFFD1D5DB)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              child: Text('Sebelumnya', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton(
+              onPressed: _currentPage < _totalPages ? () => _loadRiwayat(page: _currentPage + 1) : null,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _primary,
+                side: const BorderSide(color: Color(0xFFD1D5DB)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              child: Text('Berikutnya', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _showDetailDialog(Pengecekan item) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        maxChildSize: 0.9,
+        minChildSize: 0.4,
+        expand: false,
+        builder: (_, scrollController) => ListView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(24),
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD1D5DB),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              item.namaBarang,
+              style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800, color: _textDark),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Kode: ${item.kodeBarang}',
+              style: GoogleFonts.inter(fontSize: 13, color: _textGrey),
+            ),
+            const SizedBox(height: 16),
+
+            _detailRow('Kategori', item.namaKategori),
+            _detailRow('Merk', item.namaMerk),
+            _detailRow('Lokasi', '${item.namaUnit} → ${item.namaRuang}'),
+            _detailRow('Periode', '${item.namaPeriode} (${item.tahun})'),
+            _detailRow('Tanggal Cek', _formatDate(item.tglPengecekan)),
+
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text('Temuan: ', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                _buildBadge(item.kondisiTemuan, _kondisiColor(item.kondisiTemuan)),
+                const SizedBox(width: 10),
+                Text('Review: ', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
+                _buildReviewBadge(item.statusReview),
+              ],
+            ),
+
+            if (item.catatan.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Catatan:', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF374151))),
+              const SizedBox(height: 4),
+              Text(
+                '"${item.catatan}"',
+                style: GoogleFonts.inter(fontSize: 13, fontStyle: FontStyle.italic, color: _textGrey),
+              ),
+            ],
+
+            if (item.namaReviewer != null && item.namaReviewer!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text('Reviewer: ${item.namaReviewer}', style: GoogleFonts.inter(fontSize: 12, color: _textGrey)),
+            ],
+
+            if (item.catatanReviewer.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(8),
+                  border: const Border(left: BorderSide(color: Color(0xFF6B7280), width: 3)),
+                ),
+                child: Text(
+                  '"${item.catatanReviewer}"',
+                  style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic, color: const Color(0xFF374151)),
+                ),
+              ),
+            ],
+
+            if (item.fotoBukti != null && item.fotoBukti!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text('Foto Bukti:', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: CachedNetworkImage(
+                  imageUrl: ApiConfig.buktiImageUrl(item.fotoBukti!),
+                  placeholder: (_, __) => Container(
+                    height: 150,
+                    color: const Color(0xFFE5E7EB),
+                    child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    height: 100,
+                    color: const Color(0xFFE5E7EB),
+                    child: const Center(child: Icon(Icons.image_not_supported_outlined, color: _textMuted)),
+                  ),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -393,162 +767,6 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     );
   }
 
-  Widget _buildPagination() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        children: [
-          Text(
-            'Menampilkan ${_items.length} dari $_totalItems data',
-            style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF9CA3AF)),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              OutlinedButton(
-                onPressed: _currentPage > 1 ? () => _loadRiwayat(page: _currentPage - 1) : null,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF4F46E5),
-                  side: const BorderSide(color: Color(0xFFD1D5DB)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                ),
-                child: Text('Sebelumnya', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton(
-                onPressed: _currentPage < _totalPages ? () => _loadRiwayat(page: _currentPage + 1) : null,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF4F46E5),
-                  side: const BorderSide(color: Color(0xFFD1D5DB)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                ),
-                child: Text('Berikutnya', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDetailDialog(Pengecekan item) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.65,
-        maxChildSize: 0.9,
-        minChildSize: 0.4,
-        expand: false,
-        builder: (_, scrollController) => ListView(
-          controller: scrollController,
-          padding: const EdgeInsets.all(24),
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD1D5DB),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              item.namaBarang,
-              style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800, color: const Color(0xFF111827)),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Kode: ${item.kodeBarang}',
-              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF6B7280)),
-            ),
-            const SizedBox(height: 16),
-
-            _detailRow('Kategori', item.namaKategori),
-            _detailRow('Merk', item.namaMerk),
-            _detailRow('Lokasi', '${item.namaUnit} → ${item.namaRuang}'),
-            _detailRow('Periode', '${item.namaPeriode} (${item.tahun})'),
-            _detailRow('Tanggal Cek', _formatDate(item.tglPengecekan)),
-            
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Text('Temuan: ', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
-                _buildBadge(item.kondisiTemuan, _kondisiColor(item.kondisiTemuan)),
-                const SizedBox(width: 10),
-                Text('Review: ', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600)),
-                _buildReviewBadge(item.statusReview),
-              ],
-            ),
-
-            if (item.catatan.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text('Catatan:', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF374151))),
-              const SizedBox(height: 4),
-              Text(
-                '"${item.catatan}"',
-                style: GoogleFonts.inter(fontSize: 13, fontStyle: FontStyle.italic, color: const Color(0xFF6B7280)),
-              ),
-            ],
-
-            if (item.namaReviewer != null && item.namaReviewer!.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Text('Reviewer: ${item.namaReviewer}', style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFF6B7280))),
-            ],
-
-            if (item.catatanReviewer.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(8),
-                  border: const Border(left: BorderSide(color: Color(0xFF6B7280), width: 3)),
-                ),
-                child: Text(
-                  '"${item.catatanReviewer}"',
-                  style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic, color: const Color(0xFF374151)),
-                ),
-              ),
-            ],
-
-            if (item.fotoBukti != null && item.fotoBukti!.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text('Foto Bukti:', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: CachedNetworkImage(
-                  imageUrl: ApiConfig.buktiImageUrl(item.fotoBukti!),
-                  placeholder: (_, __) => Container(
-                    height: 150,
-                    color: const Color(0xFFE5E7EB),
-                    child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                  ),
-                  errorWidget: (_, __, ___) => Container(
-                    height: 100,
-                    color: const Color(0xFFE5E7EB),
-                    child: const Center(child: Icon(Icons.image_not_supported_outlined, color: Color(0xFF9CA3AF))),
-                  ),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _detailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -559,13 +777,13 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             width: 100,
             child: Text(
               label,
-              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF6B7280)),
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: _textGrey),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: GoogleFonts.inter(fontSize: 13, color: const Color(0xFF111827)),
+              style: GoogleFonts.inter(fontSize: 13, color: _textDark),
             ),
           ),
         ],
