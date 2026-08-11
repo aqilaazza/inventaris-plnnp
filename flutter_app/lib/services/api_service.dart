@@ -235,6 +235,35 @@ class ApiService {
   }
 
   // ============================================================
+  // RIWAYAT PENGECEKAN PER BULAN (untuk popup Kalender)
+  // Hanya ambil data 1 bulan+tahun tertentu
+  // ============================================================
+  static Future<Map<String, dynamic>> getRiwayatKalender({
+    required int bulan, // 1-12
+    required int tahun,
+  }) async {
+    try {
+      final params = 'action=riwayat_kalender&bulan=$bulan&tahun=$tahun';
+      final response = await http.get(
+        Uri.parse('${ApiConfig.apiUrl}?$params'),
+        headers: _authHeaders,
+      ).timeout(const Duration(seconds: 15));
+
+      final data = json.decode(response.body);
+
+      if (data['success'] == true) {
+        final items = (data['data'] as List).map((e) => Pengecekan.fromJson(e)).toList();
+        return {'success': true, 'data': items};
+      }
+      return {'success': false, 'message': data['message'] ?? 'Gagal memuat kalender riwayat'};
+    } on SocketException {
+      return {'success': false, 'message': 'Tidak dapat terhubung ke server.'};
+    } catch (e) {
+      return {'success': false, 'message': 'Terjadi kesalahan: $e'};
+    }
+  }
+
+  // ============================================================
   // PROFIL
   // ============================================================
   static Future<Map<String, dynamic>> getProfil() async {
