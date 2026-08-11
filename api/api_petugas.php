@@ -181,9 +181,10 @@ if ($action === 'dashboard') {
     
     // Riwayat terbaru (5)
     $riwayat = [];
-    $rq = $conn->prepare("SELECT pb.*, b.nama_barang, pe.nama_periode 
+    $rq = $conn->prepare("SELECT pb.*, b.nama_barang, b.foto as foto_barang, r.nama_ruang, pe.nama_periode 
                           FROM pengecekan_barang pb
                           JOIN barang b ON pb.id_barang = b.id
+                          LEFT JOIN ruang r ON b.id_ruang = r.id
                           JOIN periode_pengecekan pe ON pb.id_periode = pe.id
                           WHERE pb.id_petugas = ?
                           ORDER BY pb.tgl_pengecekan DESC LIMIT 5");
@@ -193,7 +194,10 @@ if ($action === 'dashboard') {
     while ($row = $rr->fetch_assoc()) {
         $riwayat[] = [
             'id' => (int)$row['id'],
+            'id_barang' => (int)$row['id_barang'],
             'nama_barang' => $row['nama_barang'],
+            'nama_ruang' => $row['nama_ruang'] ?? '-',
+            'foto_barang' => $row['foto_barang'],
             'nama_periode' => $row['nama_periode'],
             'kondisi_temuan' => $row['kondisi_temuan'],
             'status_review' => $row['status_review'],
