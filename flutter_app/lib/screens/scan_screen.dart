@@ -603,18 +603,13 @@ class _ScanScreenState extends State<ScanScreen> {
       appBar: AppBar(
         title: Text(
           'Scan & Cek Barang',
-          style: GoogleFonts.plusJakartaSans(
-            fontWeight: FontWeight.w800,
-            fontSize: 17,
-            color: _C.ink,
-          ),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 20),
         ),
         centerTitle: true,
-        backgroundColor: _C.bg,
-        foregroundColor: _C.ink,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF4F46E5),
         elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 1,
       ),
       body: ListView(
         controller: _scrollController,

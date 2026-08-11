@@ -17,6 +17,20 @@ class RiwayatScreen extends StatefulWidget {
 
 enum _FilterKondisi { semua, baik, perhatian }
 
+extension on _FilterKondisi {
+  // Nilai yang dikirim ke API (param 'kondisi')
+  String get apiValue {
+    switch (this) {
+      case _FilterKondisi.baik:
+        return 'baik';
+      case _FilterKondisi.perhatian:
+        return 'bermasalah';
+      case _FilterKondisi.semua:
+        return '';
+    }
+  }
+}
+
 class _RiwayatScreenState extends State<RiwayatScreen> {
   final _searchController = TextEditingController();
   Timer? _debounce;
@@ -26,6 +40,11 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   int _totalPages = 1;
   int _totalItems = 0;
 
+  // Summary dari SELURUH data (bukan cuma halaman ini), dikirim backend
+  int _summaryTotal = 0;
+  int _summaryBaik = 0;
+  int _summaryBermasalah = 0;
+
   _FilterKondisi _filter = _FilterKondisi.semua;
 
   static const _primary = Color(0xFF4F46E5);
@@ -34,6 +53,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   static const _greenLight = Color(0xFFECFDF5);
   static const _orange = Color(0xFFF59E0B);
   static const _red = Color(0xFFEF4444);
+  static const _redLight = Color(0xFFFEF2F2);
   static const _bg = Color(0xFFF3F4F6);
   static const _textDark = Color(0xFF111827);
   static const _textGrey = Color(0xFF6B7280);
@@ -52,16 +72,17 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     super.dispose();
   }
 
-  // Dipanggil setiap kali teks di search bar berubah.
-  // setState() di sini bikin tombol X langsung muncul/hilang real-time.
-  // Timer debounce mencegah API dipanggil di setiap ketukan huruf —
-  // baru benar-benar cari setelah user berhenti mengetik selama 500ms.
   void _onSearchChanged(String value) {
-    setState(() {}); // refresh tampilan tombol clear (X)
+    setState(() {});
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
-      _loadRiwayat();
+      _loadRiwayat(page: 1);
     });
+  }
+
+  void _onFilterChanged(_FilterKondisi value) {
+    setState(() => _filter = value);
+    _loadRiwayat(page: 1);
   }
 
   Future<void> _loadRiwayat({int page = 1}) async {
@@ -71,6 +92,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
       page: page,
       limit: 20,
       search: _searchController.text.trim(),
+      kondisi: _filter.apiValue,
     );
 
     if (!mounted) return;
@@ -78,32 +100,25 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     if (result['success'] == true) {
       setState(() {
         _items = result['data'] as List<Pengecekan>;
+
         final pagination = result['pagination'];
         _currentPage = pagination['page'] ?? 1;
         _totalPages = pagination['total_pages'] ?? 1;
         _totalItems = pagination['total'] ?? 0;
+
+        final summary = result['summary'];
+        if (summary != null) {
+          _summaryTotal = summary['total'] ?? 0;
+          _summaryBaik = summary['total_baik'] ?? 0;
+          _summaryBermasalah = summary['total_bermasalah'] ?? 0;
+        }
+
         _isLoading = false;
       });
     } else {
       setState(() => _isLoading = false);
     }
   }
-
-  // Data yang sudah difilter kondisi (client-side, dari halaman yang sedang dimuat)
-  List<Pengecekan> get _filteredItems {
-    switch (_filter) {
-      case _FilterKondisi.baik:
-        return _items.where((e) => e.kondisiTemuan == 'Baik').toList();
-      case _FilterKondisi.perhatian:
-        return _items.where((e) => e.kondisiTemuan != 'Baik').toList();
-      case _FilterKondisi.semua:
-        return _items;
-    }
-  }
-
-  // Perkiraan "Aset Baik" dari data yang sudah termuat di halaman ini.
-  // Catatan: bukan total keseluruhan karena backend belum expose summary count.
-  int get _asetBaikCount => _items.where((e) => e.kondisiTemuan == 'Baik').length;
 
   String _relativeDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return '-';
@@ -202,10 +217,10 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     const SizedBox(height: 20),
                     _buildAktivitasHeader(),
                     const SizedBox(height: 10),
-                    if (_filteredItems.isEmpty)
+                    if (_items.isEmpty)
                       _buildEmptyState()
                     else
-                      ..._filteredItems.map(_buildAktivitasItem),
+                      ..._items.map(_buildAktivitasItem),
                     const SizedBox(height: 16),
                     _buildPagination(),
                   ],
@@ -262,19 +277,29 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             Expanded(
               child: _buildSummaryCard(
                 label: 'Total Scan',
-                value: '$_totalItems',
+                value: '$_summaryTotal',
                 color: _primary,
                 bgColor: _primaryLight,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: _buildSummaryCard(
                 label: 'Aset Baik',
-                value: '$_asetBaikCount',
+                value: '$_summaryBaik',
                 color: _green,
                 bgColor: _greenLight,
                 icon: Icons.check_circle_rounded,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildSummaryCard(
+                label: 'Perlu Perhatian',
+                value: '$_summaryBermasalah',
+                color: _red,
+                bgColor: _redLight,
+                icon: Icons.warning_rounded,
               ),
             ),
           ],
@@ -291,28 +316,30 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     IconData? icon,
   }) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+            style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: color),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Row(
             children: [
               Text(
                 value,
-                style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w800, color: color),
+                style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: color),
               ),
               if (icon != null) ...[
-                const SizedBox(width: 6),
-                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 4),
+                Icon(icon, size: 14, color: color),
               ],
             ],
           ),
@@ -341,7 +368,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                   onPressed: () {
                     _debounce?.cancel();
                     _searchController.clear();
-                    _loadRiwayat();
+                    _loadRiwayat(page: 1);
                   },
                 )
               : null,
@@ -351,7 +378,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         onChanged: _onSearchChanged,
         onSubmitted: (_) {
           _debounce?.cancel();
-          _loadRiwayat();
+          _loadRiwayat(page: 1);
         },
       ),
     );
@@ -361,7 +388,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     Widget chip(String label, _FilterKondisi value) {
       final selected = _filter == value;
       return GestureDetector(
-        onTap: () => setState(() => _filter = value),
+        onTap: () => _onFilterChanged(value),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
           decoration: BoxDecoration(
@@ -497,7 +524,6 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 3),
                   if (bermasalah) ...[
                     const SizedBox(height: 6),
                     Container(
@@ -579,7 +605,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     return Column(
       children: [
         Text(
-          'Menampilkan ${_filteredItems.length} dari $_totalItems data',
+          'Menampilkan ${_items.length} dari $_totalItems data',
           style: GoogleFonts.inter(fontSize: 11, color: _textMuted),
         ),
         const SizedBox(height: 10),
