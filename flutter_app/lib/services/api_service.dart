@@ -205,9 +205,11 @@ class ApiService {
     int page = 1,
     int limit = 20,
     String search = '',
+    String kondisi = '', // '', 'baik', atau 'bermasalah'
   }) async {
     try {
-      final params = 'action=riwayat&page=$page&limit=$limit&search=${Uri.encodeComponent(search)}';
+      final params =
+          'action=riwayat&page=$page&limit=$limit&search=${Uri.encodeComponent(search)}&kondisi=${Uri.encodeComponent(kondisi)}';
       final response = await http.get(
         Uri.parse('${ApiConfig.apiUrl}?$params'),
         headers: _authHeaders,
@@ -221,6 +223,7 @@ class ApiService {
           'success': true,
           'data': items,
           'pagination': data['pagination'],
+          'summary': data['summary'],
         };
       }
       return {'success': false, 'message': data['message'] ?? 'Gagal memuat riwayat'};
