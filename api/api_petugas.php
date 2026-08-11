@@ -552,9 +552,9 @@ if ($action === 'submit_pengecekan') {
     $upload_ok = true;
     
     // Handle foto upload
-    if (in_array($kondisi_temuan, ['Rusak', 'Hilang'])) {
+    if ($kondisi_temuan === 'Rusak') {
         if (!isset($_FILES['foto_bukti']) || $_FILES['foto_bukti']['error'] !== 0) {
-            jsonError('Foto bukti wajib dilampirkan jika barang rusak atau hilang!');
+            jsonError('Foto bukti wajib dilampirkan jika barang rusak!');
         }
         
         $tmp = $_FILES['foto_bukti']['tmp_name'];
