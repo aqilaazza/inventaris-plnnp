@@ -10,7 +10,7 @@
  *   ?action=get_barang     (GET)  - Cari barang by kode
  *   ?action=check_status   (GET)  - Cek status pengecekan barang
  *   ?action=submit_pengecekan (POST) - Kirim pengecekan
- *   ?action=riwayat        (GET)  - Riwayat pengecekan
+ *   ?action=riwayat        (GET)  - Riwayat pengecekan (di-scope ke periode aktif)
  *   ?action=riwayat_kalender (GET) - Riwayat pengecekan per bulan (untuk kalender)
  *   ?action=profil         (GET)  - Data profil petugas
  *   ?action=list_barang_all(GET)  - Daftar semua barang untuk dropdown update gambar
@@ -715,7 +715,10 @@ if ($action === 'submit_pengecekan') {
 }
 
 // ============================================================
-// ACTION: riwayat  (VERSI LENGKAP - filter kondisi + summary count)
+// ACTION: riwayat  (DI-SCOPE KE PERIODE AKTIF)
+// List, search, filter kondisi, pagination, DAN summary semuanya
+// hanya menghitung/menampilkan data dari periode_pengecekan yang
+// sedang 'aktif'.
 // ============================================================
 if ($action === 'riwayat') {
     $page = max(1, intval($_GET['page'] ?? 1));
@@ -725,9 +728,31 @@ if ($action === 'riwayat') {
     // kondisi: '' (semua), 'baik', 'rusak', atau 'hilang'
     $kondisi = trim($_GET['kondisi'] ?? '');
 
-    $where_extra = "";
-    $params = [$userId];
-    $types = "i";
+    // Cari periode aktif dulu. Kalau tidak ada, langsung balikin kosong.
+    $res_periode = $conn->query("SELECT id FROM periode_pengecekan WHERE status = 'aktif' ORDER BY id DESC LIMIT 1");
+    if (!$res_periode || $res_periode->num_rows === 0) {
+        jsonResponse([
+            'success' => true,
+            'data' => [],
+            'pagination' => [
+                'total' => 0,
+                'page' => 1,
+                'limit' => $limit,
+                'total_pages' => 0,
+            ],
+            'summary' => [
+                'total' => 0,
+                'total_baik' => 0,
+                'total_rusak' => 0,
+                'total_hilang' => 0,
+            ],
+        ]);
+    }
+    $id_periode_aktif = (int)$res_periode->fetch_assoc()['id'];
+
+    $where_extra = " AND pb.id_periode = ?";
+    $params = [$userId, $id_periode_aktif];
+    $types = "ii";
 
     if ($search !== '') {
         $where_extra .= " AND (b.nama_barang LIKE ? OR k.nama_kategori LIKE ?)";
@@ -747,15 +772,16 @@ if ($action === 'riwayat') {
     }
 
     // ------------------------------------------------------------
-    // Summary counts: dihitung dari SEMUA data yang match search
-    // (tidak terpengaruh filter kondisi, supaya angka card ringkasan
-    // tetap stabil walau chip filter lagi dipilih yang mana)
+    // Summary counts: dihitung dari SEMUA data periode aktif yang
+    // match search (tidak terpengaruh filter kondisi, supaya angka
+    // card ringkasan tetap stabil walau chip filter lagi dipilih
+    // yang mana).
     // ------------------------------------------------------------
-    $summary_where = "";
-    $summary_params = [$userId];
-    $summary_types = "i";
+    $summary_where = " AND pb.id_periode = ?";
+    $summary_params = [$userId, $id_periode_aktif];
+    $summary_types = "ii";
     if ($search !== '') {
-        $summary_where = " AND (b.nama_barang LIKE ? OR k.nama_kategori LIKE ?)";
+        $summary_where .= " AND (b.nama_barang LIKE ? OR k.nama_kategori LIKE ?)";
         $search_like = "%$search%";
         $summary_params[] = $search_like;
         $summary_params[] = $search_like;
@@ -783,7 +809,8 @@ if ($action === 'riwayat') {
     $total_hilang = (int)$summary_row['total_hilang'];
 
     // ------------------------------------------------------------
-    // Fetch data (dengan filter kondisi + pagination)
+    // Fetch data (dengan filter kondisi + pagination), di-scope ke
+    // periode aktif lewat $where_extra di atas.
     // ------------------------------------------------------------
     $sql = "SELECT pb.*, b.nama_barang, b.foto as foto_barang, m.nama_merk, k.nama_kategori,
                    u.nama_unit, r.nama_ruang, pe.nama_periode, pe.tahun,
@@ -850,7 +877,7 @@ if ($action === 'riwayat') {
             'limit' => $limit,
             'total_pages' => ceil($total_filtered / $limit),
         ],
-        // Summary selalu dari total keseluruhan (tidak terpengaruh filter kondisi)
+        // Summary dari total periode aktif (tidak terpengaruh filter kondisi)
         'summary' => [
             'total' => $total,
             'total_baik' => $total_baik,
@@ -861,9 +888,11 @@ if ($action === 'riwayat') {
 }
 
 // ============================================================
-// ACTION: riwayat_kalender
-// Ambil SEMUA riwayat pengecekan petugas ini untuk satu bulan+tahun
-// tertentu saja (dipakai oleh popup kalender).
+// ACTION: riwayat_kalender  (DI-SCOPE KE PERIODE AKTIF)
+// Ambil riwayat pengecekan petugas ini untuk satu bulan+tahun
+// tertentu (dipakai oleh popup kalender), dibatasi hanya data dari
+// periode_pengecekan yang sedang 'aktif' — konsisten dengan action
+// 'riwayat'. Kalau tidak ada periode aktif, langsung balikin kosong.
 // ============================================================
 if ($action === 'riwayat_kalender') {
     $bulan = intval($_GET['bulan'] ?? 0);
@@ -875,6 +904,17 @@ if ($action === 'riwayat_kalender') {
     if ($tahun < 2000 || $tahun > 2100) {
         jsonError('Parameter tahun tidak valid.');
     }
+
+    $res_periode = $conn->query("SELECT id FROM periode_pengecekan WHERE status = 'aktif' ORDER BY id DESC LIMIT 1");
+    if (!$res_periode || $res_periode->num_rows === 0) {
+        jsonResponse([
+            'success' => true,
+            'data' => [],
+            'bulan' => $bulan,
+            'tahun' => $tahun,
+        ]);
+    }
+    $id_periode_aktif = (int)$res_periode->fetch_assoc()['id'];
 
     $sql = "SELECT pb.*, b.nama_barang, b.foto as foto_barang, m.nama_merk, k.nama_kategori,
                    u.nama_unit, r.nama_ruang, pe.nama_periode, pe.tahun,
@@ -888,12 +928,13 @@ if ($action === 'riwayat_kalender') {
             JOIN periode_pengecekan pe ON pb.id_periode = pe.id
             LEFT JOIN users rv ON pb.id_reviewer = rv.id
             WHERE pb.id_petugas = ?
+              AND pb.id_periode = ?
               AND MONTH(pb.tgl_pengecekan) = ?
               AND YEAR(pb.tgl_pengecekan) = ?
             ORDER BY pb.tgl_pengecekan ASC";
 
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("iii", $userId, $bulan, $tahun);
+    $stmt->bind_param("iiii", $userId, $id_periode_aktif, $bulan, $tahun);
     $stmt->execute();
     $res = $stmt->get_result();
 
@@ -949,4 +990,3 @@ if ($action === 'profil') {
 // Unknown action
 // ============================================================
 jsonError('Action tidak dikenali: ' . htmlspecialchars($action), 404);
-?>
