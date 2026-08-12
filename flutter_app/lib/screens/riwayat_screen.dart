@@ -15,7 +15,7 @@ class RiwayatScreen extends StatefulWidget {
   State<RiwayatScreen> createState() => _RiwayatScreenState();
 }
 
-enum _FilterKondisi { semua, baik, perhatian }
+enum _FilterKondisi { semua, baik, rusak, hilang }
 
 extension on _FilterKondisi {
   // Nilai yang dikirim ke API (param 'kondisi')
@@ -23,8 +23,10 @@ extension on _FilterKondisi {
     switch (this) {
       case _FilterKondisi.baik:
         return 'baik';
-      case _FilterKondisi.perhatian:
-        return 'bermasalah';
+      case _FilterKondisi.rusak:
+        return 'rusak';
+      case _FilterKondisi.hilang:
+        return 'hilang';
       case _FilterKondisi.semua:
         return '';
     }
@@ -35,7 +37,17 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   final _searchController = TextEditingController();
   Timer? _debounce;
   List<Pengecekan> _items = [];
-  bool _isLoading = true;
+
+  // _isInitialLoading: true HANYA saat pertama kali halaman dibuka (belum
+  // pernah ada data sama sekali). Dipakai untuk nentuin kapan spinner
+  // besar full-screen boleh tampil.
+  bool _isInitialLoading = true;
+
+  // _isFetching: true setiap kali sedang ambil data ke API, termasuk saat
+  // ganti filter/search/halaman. Dipakai untuk indikator loading yang
+  // halus (tanpa bikin seluruh list "ngedip"/reset).
+  bool _isFetching = false;
+
   int _currentPage = 1;
   int _totalPages = 1;
   int _totalItems = 0;
@@ -43,7 +55,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   // Summary dari SELURUH data (bukan cuma halaman ini), dikirim backend
   int _summaryTotal = 0;
   int _summaryBaik = 0;
-  int _summaryBermasalah = 0;
+  int _summaryRusak = 0;
+  int _summaryHilang = 0;
 
   _FilterKondisi _filter = _FilterKondisi.semua;
 
@@ -81,12 +94,13 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   }
 
   void _onFilterChanged(_FilterKondisi value) {
+    if (_isFetching || value == _filter) return;
     setState(() => _filter = value);
     _loadRiwayat(page: 1);
   }
 
   Future<void> _loadRiwayat({int page = 1}) async {
-    setState(() => _isLoading = true);
+    setState(() => _isFetching = true);
 
     final result = await ApiService.getRiwayat(
       page: page,
@@ -110,13 +124,18 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         if (summary != null) {
           _summaryTotal = summary['total'] ?? 0;
           _summaryBaik = summary['total_baik'] ?? 0;
-          _summaryBermasalah = summary['total_bermasalah'] ?? 0;
+          _summaryRusak = summary['total_rusak'] ?? 0;
+          _summaryHilang = summary['total_hilang'] ?? 0;
         }
 
-        _isLoading = false;
+        _isFetching = false;
+        _isInitialLoading = false;
       });
     } else {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isFetching = false;
+        _isInitialLoading = false;
+      });
     }
   }
 
@@ -201,7 +220,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         scrolledUnderElevation: 1,
       ),
       body: SafeArea(
-        child: _isLoading && _items.isEmpty
+        child: _isInitialLoading
             ? const Center(child: CircularProgressIndicator(color: _primary))
             : RefreshIndicator(
                 onRefresh: () => _loadRiwayat(page: 1),
@@ -214,13 +233,20 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     _buildSearchBar(),
                     const SizedBox(height: 12),
                     _buildFilterChips(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
+                    _buildLoadingBar(),
+                    const SizedBox(height: 10),
                     _buildAktivitasHeader(),
                     const SizedBox(height: 10),
-                    if (_items.isEmpty)
-                      _buildEmptyState()
-                    else
-                      ..._items.map(_buildAktivitasItem),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: _items.isEmpty
+                          ? _buildEmptyState(key: const ValueKey('empty'))
+                          : Column(
+                              key: const ValueKey('list'),
+                              children: _items.map(_buildAktivitasItem).toList(),
+                            ),
+                    ),
                     const SizedBox(height: 16),
                     _buildPagination(),
                   ],
@@ -230,120 +256,133 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     );
   }
 
-  Widget _buildRingkasan(String periodeLabel) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'RINGKASAN AKTIVITAS',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: _textMuted,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Periode ${periodeLabel[0].toUpperCase()}${periodeLabel.substring(1)}',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _textGrey,
-                    ),
-                  ),
-                ],
+  /// Garis loading tipis yang muncul/hilang secara halus, dipakai saat
+  /// ganti filter/search/halaman. Tidak mengganti konten list yang sudah
+  /// tampil, jadi tidak ada efek "ngedip" atau layar reset ke kosong.
+  Widget _buildLoadingBar() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
+      child: (_isFetching && !_isInitialLoading)
+          ? ClipRRect(
+              key: const ValueKey('loading'),
+              borderRadius: BorderRadius.circular(4),
+              child: const LinearProgressIndicator(
+                minHeight: 3,
+                backgroundColor: Color(0xFFE5E7EB),
+                valueColor: AlwaysStoppedAnimation<Color>(_primary),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.bar_chart_rounded, color: Colors.white, size: 18),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSummaryCard(
-                label: 'Total Scan',
-                value: '$_summaryTotal',
-                color: _primary,
-                bgColor: _primaryLight,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildSummaryCard(
-                label: 'Aset Baik',
-                value: '$_summaryBaik',
-                color: _green,
-                bgColor: _greenLight,
-                icon: Icons.check_circle_rounded,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildSummaryCard(
-                label: 'Perlu Perhatian',
-                value: '$_summaryBermasalah',
-                color: _red,
-                bgColor: _redLight,
-                icon: Icons.warning_rounded,
-              ),
-            ),
-          ],
-        ),
-      ],
+            )
+          : const SizedBox(key: ValueKey('idle'), height: 3),
     );
   }
 
-  Widget _buildSummaryCard({
-    required String label,
-    required String value,
-    required Color color,
-    required Color bgColor,
-    IconData? icon,
-  }) {
+  Widget _buildRingkasan(String periodeLabel) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF312E81), Color(0xFF4C1D95), Color(0xFF6D28D9)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4C1D95).withValues(alpha: 0.3),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: color),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
           Row(
             children: [
-              Text(
-                value,
-                style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: color),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(Icons.bar_chart_rounded, color: Colors.white, size: 22),
               ),
-              if (icon != null) ...[
-                const SizedBox(width: 4),
-                Icon(icon, size: 14, color: color),
-              ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ringkasan Aktivitas',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Periode ${periodeLabel[0].toUpperCase()}${periodeLabel.substring(1)}',
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _headerStat('$_summaryTotal', 'Total', Colors.white),
+              const SizedBox(width: 8),
+              _headerStat('$_summaryBaik', 'Baik', const Color(0xFFA7F3D0)),
+              const SizedBox(width: 8),
+              _headerStat('$_summaryRusak', 'Rusak', const Color(0xFFFDE68A)),
+              const SizedBox(width: 8),
+              _headerStat('$_summaryHilang', 'Hilang', const Color(0xFFFCA5A5)),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _headerStat(String value, String label, Color valueColor) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: valueColor,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -389,7 +428,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
       final selected = _filter == value;
       return GestureDetector(
         onTap: () => _onFilterChanged(value),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
           decoration: BoxDecoration(
             color: selected ? _primary : Colors.white,
@@ -414,9 +454,11 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         children: [
           chip('Semua', _FilterKondisi.semua),
           const SizedBox(width: 8),
-          chip('Kondisi Baik', _FilterKondisi.baik),
+          chip('Baik', _FilterKondisi.baik),
           const SizedBox(width: 8),
-          chip('Perlu Perhatian', _FilterKondisi.perhatian),
+          chip('Rusak', _FilterKondisi.rusak),
+          const SizedBox(width: 8),
+          chip('Hilang', _FilterKondisi.hilang),
         ],
       ),
     );
@@ -447,8 +489,9 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({Key? key}) {
     return Padding(
+      key: key,
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Column(
         children: [
@@ -613,7 +656,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             OutlinedButton(
-              onPressed: _currentPage > 1 ? () => _loadRiwayat(page: _currentPage - 1) : null,
+              onPressed: (!_isFetching && _currentPage > 1) ? () => _loadRiwayat(page: _currentPage - 1) : null,
               style: OutlinedButton.styleFrom(
                 foregroundColor: _primary,
                 side: const BorderSide(color: Color(0xFFD1D5DB)),
@@ -624,7 +667,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             ),
             const SizedBox(width: 12),
             OutlinedButton(
-              onPressed: _currentPage < _totalPages ? () => _loadRiwayat(page: _currentPage + 1) : null,
+              onPressed: (!_isFetching && _currentPage < _totalPages) ? () => _loadRiwayat(page: _currentPage + 1) : null,
               style: OutlinedButton.styleFrom(
                 foregroundColor: _primary,
                 side: const BorderSide(color: Color(0xFFD1D5DB)),
