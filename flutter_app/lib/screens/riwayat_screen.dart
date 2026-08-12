@@ -37,7 +37,17 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   final _searchController = TextEditingController();
   Timer? _debounce;
   List<Pengecekan> _items = [];
-  bool _isLoading = true;
+
+  // _isInitialLoading: true HANYA saat pertama kali halaman dibuka (belum
+  // pernah ada data sama sekali). Dipakai untuk nentuin kapan spinner
+  // besar full-screen boleh tampil.
+  bool _isInitialLoading = true;
+
+  // _isFetching: true setiap kali sedang ambil data ke API, termasuk saat
+  // ganti filter/search/halaman. Dipakai untuk indikator loading yang
+  // halus (tanpa bikin seluruh list "ngedip"/reset).
+  bool _isFetching = false;
+
   int _currentPage = 1;
   int _totalPages = 1;
   int _totalItems = 0;
@@ -84,12 +94,13 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   }
 
   void _onFilterChanged(_FilterKondisi value) {
+    if (_isFetching || value == _filter) return;
     setState(() => _filter = value);
     _loadRiwayat(page: 1);
   }
 
   Future<void> _loadRiwayat({int page = 1}) async {
-    setState(() => _isLoading = true);
+    setState(() => _isFetching = true);
 
     final result = await ApiService.getRiwayat(
       page: page,
@@ -117,10 +128,14 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
           _summaryHilang = summary['total_hilang'] ?? 0;
         }
 
-        _isLoading = false;
+        _isFetching = false;
+        _isInitialLoading = false;
       });
     } else {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isFetching = false;
+        _isInitialLoading = false;
+      });
     }
   }
 
@@ -205,7 +220,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         scrolledUnderElevation: 1,
       ),
       body: SafeArea(
-        child: _isLoading && _items.isEmpty
+        child: _isInitialLoading
             ? const Center(child: CircularProgressIndicator(color: _primary))
             : RefreshIndicator(
                 onRefresh: () => _loadRiwayat(page: 1),
@@ -218,19 +233,47 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
                     _buildSearchBar(),
                     const SizedBox(height: 12),
                     _buildFilterChips(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
+                    _buildLoadingBar(),
+                    const SizedBox(height: 10),
                     _buildAktivitasHeader(),
                     const SizedBox(height: 10),
-                    if (_items.isEmpty)
-                      _buildEmptyState()
-                    else
-                      ..._items.map(_buildAktivitasItem),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      child: _items.isEmpty
+                          ? _buildEmptyState(key: const ValueKey('empty'))
+                          : Column(
+                              key: const ValueKey('list'),
+                              children: _items.map(_buildAktivitasItem).toList(),
+                            ),
+                    ),
                     const SizedBox(height: 16),
                     _buildPagination(),
                   ],
                 ),
               ),
       ),
+    );
+  }
+
+  /// Garis loading tipis yang muncul/hilang secara halus, dipakai saat
+  /// ganti filter/search/halaman. Tidak mengganti konten list yang sudah
+  /// tampil, jadi tidak ada efek "ngedip" atau layar reset ke kosong.
+  Widget _buildLoadingBar() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
+      child: (_isFetching && !_isInitialLoading)
+          ? ClipRRect(
+              key: const ValueKey('loading'),
+              borderRadius: BorderRadius.circular(4),
+              child: const LinearProgressIndicator(
+                minHeight: 3,
+                backgroundColor: Color(0xFFE5E7EB),
+                valueColor: AlwaysStoppedAnimation<Color>(_primary),
+              ),
+            )
+          : const SizedBox(key: ValueKey('idle'), height: 3),
     );
   }
 
@@ -385,7 +428,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
       final selected = _filter == value;
       return GestureDetector(
         onTap: () => _onFilterChanged(value),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
           decoration: BoxDecoration(
             color: selected ? _primary : Colors.white,
@@ -445,8 +489,9 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState({Key? key}) {
     return Padding(
+      key: key,
       padding: const EdgeInsets.symmetric(vertical: 40),
       child: Column(
         children: [
@@ -611,7 +656,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             OutlinedButton(
-              onPressed: _currentPage > 1 ? () => _loadRiwayat(page: _currentPage - 1) : null,
+              onPressed: (!_isFetching && _currentPage > 1) ? () => _loadRiwayat(page: _currentPage - 1) : null,
               style: OutlinedButton.styleFrom(
                 foregroundColor: _primary,
                 side: const BorderSide(color: Color(0xFFD1D5DB)),
@@ -622,7 +667,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
             ),
             const SizedBox(width: 12),
             OutlinedButton(
-              onPressed: _currentPage < _totalPages ? () => _loadRiwayat(page: _currentPage + 1) : null,
+              onPressed: (!_isFetching && _currentPage < _totalPages) ? () => _loadRiwayat(page: _currentPage + 1) : null,
               style: OutlinedButton.styleFrom(
                 foregroundColor: _primary,
                 side: const BorderSide(color: Color(0xFFD1D5DB)),
