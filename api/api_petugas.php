@@ -722,7 +722,7 @@ if ($action === 'riwayat') {
     $limit = max(1, min(100, intval($_GET['limit'] ?? 20)));
     $offset = ($page - 1) * $limit;
     $search = trim($_GET['search'] ?? '');
-    // kondisi: '' (semua), 'baik', atau 'bermasalah' (Rusak/Hilang)
+    // kondisi: '' (semua), 'baik', 'rusak', atau 'hilang'
     $kondisi = trim($_GET['kondisi'] ?? '');
 
     $where_extra = "";
@@ -740,8 +740,10 @@ if ($action === 'riwayat') {
     // Filter kondisi dilakukan di query (server-side), bukan di Flutter
     if ($kondisi === 'baik') {
         $where_extra .= " AND pb.kondisi_temuan = 'Baik'";
-    } elseif ($kondisi === 'bermasalah') {
-        $where_extra .= " AND pb.kondisi_temuan != 'Baik'";
+    } elseif ($kondisi === 'rusak') {
+        $where_extra .= " AND pb.kondisi_temuan = 'Rusak'";
+    } elseif ($kondisi === 'hilang') {
+        $where_extra .= " AND pb.kondisi_temuan = 'Hilang'";
     }
 
     // ------------------------------------------------------------
@@ -763,7 +765,8 @@ if ($action === 'riwayat') {
     $summary_sql = "SELECT
                         COUNT(*) as total,
                         SUM(CASE WHEN pb.kondisi_temuan = 'Baik' THEN 1 ELSE 0 END) as total_baik,
-                        SUM(CASE WHEN pb.kondisi_temuan != 'Baik' THEN 1 ELSE 0 END) as total_bermasalah
+                        SUM(CASE WHEN pb.kondisi_temuan = 'Rusak' THEN 1 ELSE 0 END) as total_rusak,
+                        SUM(CASE WHEN pb.kondisi_temuan = 'Hilang' THEN 1 ELSE 0 END) as total_hilang
                      FROM pengecekan_barang pb
                      JOIN barang b ON pb.id_barang = b.id
                      LEFT JOIN kategori k ON b.id_kategori = k.id
@@ -776,7 +779,8 @@ if ($action === 'riwayat') {
 
     $total = (int)$summary_row['total'];
     $total_baik = (int)$summary_row['total_baik'];
-    $total_bermasalah = (int)$summary_row['total_bermasalah'];
+    $total_rusak = (int)$summary_row['total_rusak'];
+    $total_hilang = (int)$summary_row['total_hilang'];
 
     // ------------------------------------------------------------
     // Fetch data (dengan filter kondisi + pagination)
@@ -850,7 +854,8 @@ if ($action === 'riwayat') {
         'summary' => [
             'total' => $total,
             'total_baik' => $total_baik,
-            'total_bermasalah' => $total_bermasalah,
+            'total_rusak' => $total_rusak,
+            'total_hilang' => $total_hilang,
         ],
     ]);
 }

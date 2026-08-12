@@ -15,7 +15,7 @@ class RiwayatScreen extends StatefulWidget {
   State<RiwayatScreen> createState() => _RiwayatScreenState();
 }
 
-enum _FilterKondisi { semua, baik, perhatian }
+enum _FilterKondisi { semua, baik, rusak, hilang }
 
 extension on _FilterKondisi {
   // Nilai yang dikirim ke API (param 'kondisi')
@@ -23,8 +23,10 @@ extension on _FilterKondisi {
     switch (this) {
       case _FilterKondisi.baik:
         return 'baik';
-      case _FilterKondisi.perhatian:
-        return 'bermasalah';
+      case _FilterKondisi.rusak:
+        return 'rusak';
+      case _FilterKondisi.hilang:
+        return 'hilang';
       case _FilterKondisi.semua:
         return '';
     }
@@ -43,7 +45,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   // Summary dari SELURUH data (bukan cuma halaman ini), dikirim backend
   int _summaryTotal = 0;
   int _summaryBaik = 0;
-  int _summaryBermasalah = 0;
+  int _summaryRusak = 0;
+  int _summaryHilang = 0;
 
   _FilterKondisi _filter = _FilterKondisi.semua;
 
@@ -110,7 +113,8 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         if (summary != null) {
           _summaryTotal = summary['total'] ?? 0;
           _summaryBaik = summary['total_baik'] ?? 0;
-          _summaryBermasalah = summary['total_bermasalah'] ?? 0;
+          _summaryRusak = summary['total_rusak'] ?? 0;
+          _summaryHilang = summary['total_hilang'] ?? 0;
         }
 
         _isLoading = false;
@@ -231,119 +235,111 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
   }
 
   Widget _buildRingkasan(String periodeLabel) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'RINGKASAN AKTIVITAS',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: _textMuted,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Periode ${periodeLabel[0].toUpperCase()}${periodeLabel.substring(1)}',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _textGrey,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.bar_chart_rounded, color: Colors.white, size: 18),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSummaryCard(
-                label: 'Total Scan',
-                value: '$_summaryTotal',
-                color: _primary,
-                bgColor: _primaryLight,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildSummaryCard(
-                label: 'Aset Baik',
-                value: '$_summaryBaik',
-                color: _green,
-                bgColor: _greenLight,
-                icon: Icons.check_circle_rounded,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildSummaryCard(
-                label: 'Perlu Perhatian',
-                value: '$_summaryBermasalah',
-                color: _red,
-                bgColor: _redLight,
-                icon: Icons.warning_rounded,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryCard({
-    required String label,
-    required String value,
-    required Color color,
-    required Color bgColor,
-    IconData? icon,
-  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF312E81), Color(0xFF4C1D95), Color(0xFF6D28D9)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4C1D95).withValues(alpha: 0.3),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: color),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
           Row(
             children: [
-              Text(
-                value,
-                style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w800, color: color),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(Icons.bar_chart_rounded, color: Colors.white, size: 22),
               ),
-              if (icon != null) ...[
-                const SizedBox(width: 4),
-                Icon(icon, size: 14, color: color),
-              ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ringkasan Aktivitas',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Periode ${periodeLabel[0].toUpperCase()}${periodeLabel.substring(1)}',
+                      style: GoogleFonts.inter(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _headerStat('$_summaryTotal', 'Total', Colors.white),
+              const SizedBox(width: 8),
+              _headerStat('$_summaryBaik', 'Baik', const Color(0xFFA7F3D0)),
+              const SizedBox(width: 8),
+              _headerStat('$_summaryRusak', 'Rusak', const Color(0xFFFDE68A)),
+              const SizedBox(width: 8),
+              _headerStat('$_summaryHilang', 'Hilang', const Color(0xFFFCA5A5)),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _headerStat(String value, String label, Color valueColor) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.inter(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: valueColor,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -414,9 +410,11 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         children: [
           chip('Semua', _FilterKondisi.semua),
           const SizedBox(width: 8),
-          chip('Kondisi Baik', _FilterKondisi.baik),
+          chip('Baik', _FilterKondisi.baik),
           const SizedBox(width: 8),
-          chip('Perlu Perhatian', _FilterKondisi.perhatian),
+          chip('Rusak', _FilterKondisi.rusak),
+          const SizedBox(width: 8),
+          chip('Hilang', _FilterKondisi.hilang),
         ],
       ),
     );
