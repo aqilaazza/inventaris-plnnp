@@ -16,19 +16,52 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
+  // Cache layar yang sudah pernah dibuka. Layar yang belum pernah dibuka
+  // tidak akan dibangun/di-layout sama sekali (mencegah bug di satu tab
+  // membuat seluruh IndexedStack gagal render, termasuk tab Dashboard).
+  final List<Widget?> _builtScreens = List<Widget?>.filled(5, null);
+
   void _selectTab(int index) {
     setState(() => _currentIndex = index);
   }
 
+  Widget _screenFor(int index) {
+    if (_builtScreens[index] != null) return _builtScreens[index]!;
+
+    late final Widget screen;
+    switch (index) {
+      case 0:
+        screen = DashboardScreen(
+          onNavigateToScan: () => _selectTab(1),
+          onNavigateToRiwayat: () => _selectTab(2),
+        );
+        break;
+      case 1:
+        screen = const ScanScreen();
+        break;
+      case 2:
+        screen = const RiwayatScreen();
+        break;
+      case 3:
+        screen = const UpdateGambarScreen();
+        break;
+      case 4:
+      default:
+        screen = const ProfilScreen();
+        break;
+    }
+    _builtScreens[index] = screen;
+    return screen;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final List<Widget> screens = [
-      DashboardScreen(onNavigateToScan: () => _selectTab(1)),
-      const ScanScreen(),
-      const RiwayatScreen(),
-      const UpdateGambarScreen(),
-      const ProfilScreen(),
-    ];
+    final List<Widget> screens = List.generate(
+      5,
+      (i) => i == _currentIndex || _builtScreens[i] != null
+          ? _screenFor(i)
+          : const SizedBox.shrink(),
+    );
 
     return Scaffold(
       body: IndexedStack(
