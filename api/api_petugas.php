@@ -556,10 +556,10 @@ if ($action === 'submit_pengecekan') {
     $foto_name = null;
     $upload_ok = true;
     
-    // Handle foto upload
-    if (in_array($kondisi_temuan, ['Rusak', 'Hilang'])) {
+    // Handle foto upload — wajib hanya untuk kondisi "Rusak" 
+    if ($kondisi_temuan === 'Rusak') {
         if (!isset($_FILES['foto_bukti']) || $_FILES['foto_bukti']['error'] !== 0) {
-            jsonError('Foto bukti wajib dilampirkan jika barang rusak atau hilang!');
+            jsonError('Foto bukti wajib dilampirkan jika barang rusak!');
         }
         
         $tmp = $_FILES['foto_bukti']['tmp_name'];
@@ -675,7 +675,8 @@ if ($action === 'submit_pengecekan') {
                 @unlink("../uploads/bukti/" . $old_data['foto_bukti']);
             }
             
-            $final_foto = ($foto_name !== null) ? $foto_name : $old_data['foto_bukti'];
+            // Hilang tanpa foto baru: kosongkan foto lama agar tidak tersimpan bukti yang menyesatkan.
+            $final_foto = ($foto_name !== null) ? $foto_name : (($kondisi_temuan === 'Hilang') ? null : $old_data['foto_bukti']);
             
             $stmt_up = $conn->prepare("UPDATE pengecekan_barang SET id_petugas = ?, kondisi_temuan = ?, catatan = ?, foto_bukti = ?, status_review = ?, tgl_pengecekan = NOW() WHERE id = ?");
             $stmt_up->bind_param("issssi", $userId, $kondisi_temuan, $catatan, $final_foto, $status_review, $id_pengecekan);
