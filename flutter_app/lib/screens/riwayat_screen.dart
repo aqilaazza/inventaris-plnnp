@@ -448,16 +448,15 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
       );
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
+    return Center(
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
         children: [
           chip('Semua', _FilterKondisi.semua),
-          const SizedBox(width: 8),
           chip('Baik', _FilterKondisi.baik),
-          const SizedBox(width: 8),
           chip('Rusak', _FilterKondisi.rusak),
-          const SizedBox(width: 8),
           chip('Hilang', _FilterKondisi.hilang),
         ],
       ),
