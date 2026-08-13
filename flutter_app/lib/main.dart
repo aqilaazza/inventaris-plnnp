@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'services/auth_service.dart';
-import 'screens/login_screen.dart';
 import 'screens/main_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,7 +72,7 @@ class InventarisApp extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
-      home: isLoggedIn ? const MainScreen() : const LoginScreen(),
+      home: isLoggedIn ? const MainScreen() : const SplashScreen(),
     );
   }
 }
