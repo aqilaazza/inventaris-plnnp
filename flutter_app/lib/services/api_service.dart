@@ -205,7 +205,7 @@ class ApiService {
     int page = 1,
     int limit = 20,
     String search = '',
-    String kondisi = '', // '', 'baik', atau 'bermasalah'
+    String kondisi = '', // '', 'baik', 'rusak', atau 'hilang'
   }) async {
     try {
       final params =

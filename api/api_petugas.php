@@ -10,7 +10,7 @@
  *   ?action=get_barang     (GET)  - Cari barang by kode
  *   ?action=check_status   (GET)  - Cek status pengecekan barang
  *   ?action=submit_pengecekan (POST) - Kirim pengecekan
- *   ?action=riwayat        (GET)  - Riwayat pengecekan
+ *   ?action=riwayat        (GET)  - Riwayat pengecekan (di-scope ke periode aktif)
  *   ?action=riwayat_kalender (GET) - Riwayat pengecekan per bulan (untuk kalender)
  *   ?action=profil         (GET)  - Data profil petugas
  *   ?action=list_barang_all(GET)  - Daftar semua barang untuk dropdown update gambar
@@ -182,9 +182,10 @@ if ($action === 'dashboard') {
     
     // Riwayat terbaru (5)
     $riwayat = [];
-    $rq = $conn->prepare("SELECT pb.*, b.nama_barang, pe.nama_periode 
+    $rq = $conn->prepare("SELECT pb.*, b.nama_barang, b.foto as foto_barang, r.nama_ruang, pe.nama_periode 
                           FROM pengecekan_barang pb
                           JOIN barang b ON pb.id_barang = b.id
+                          LEFT JOIN ruang r ON b.id_ruang = r.id
                           JOIN periode_pengecekan pe ON pb.id_periode = pe.id
                           WHERE pb.id_petugas = ?
                           ORDER BY pb.tgl_pengecekan DESC LIMIT 5");
@@ -194,7 +195,10 @@ if ($action === 'dashboard') {
     while ($row = $rr->fetch_assoc()) {
         $riwayat[] = [
             'id' => (int)$row['id'],
+            'id_barang' => (int)$row['id_barang'],
             'nama_barang' => $row['nama_barang'],
+            'nama_ruang' => $row['nama_ruang'] ?? '-',
+            'foto_barang' => $row['foto_barang'],
             'nama_periode' => $row['nama_periode'],
             'kondisi_temuan' => $row['kondisi_temuan'],
             'status_review' => $row['status_review'],
@@ -552,10 +556,10 @@ if ($action === 'submit_pengecekan') {
     $foto_name = null;
     $upload_ok = true;
     
-    // Handle foto upload
-    if (in_array($kondisi_temuan, ['Rusak', 'Hilang'])) {
+    // Handle foto upload — wajib hanya untuk kondisi "Rusak" 
+    if ($kondisi_temuan === 'Rusak') {
         if (!isset($_FILES['foto_bukti']) || $_FILES['foto_bukti']['error'] !== 0) {
-            jsonError('Foto bukti wajib dilampirkan jika barang rusak atau hilang!');
+            jsonError('Foto bukti wajib dilampirkan jika barang rusak!');
         }
         
         $tmp = $_FILES['foto_bukti']['tmp_name'];
@@ -671,7 +675,8 @@ if ($action === 'submit_pengecekan') {
                 @unlink("../uploads/bukti/" . $old_data['foto_bukti']);
             }
             
-            $final_foto = ($foto_name !== null) ? $foto_name : $old_data['foto_bukti'];
+            // Hilang tanpa foto baru: kosongkan foto lama agar tidak tersimpan bukti yang menyesatkan.
+            $final_foto = ($foto_name !== null) ? $foto_name : (($kondisi_temuan === 'Hilang') ? null : $old_data['foto_bukti']);
             
             $stmt_up = $conn->prepare("UPDATE pengecekan_barang SET id_petugas = ?, kondisi_temuan = ?, catatan = ?, foto_bukti = ?, status_review = ?, tgl_pengecekan = NOW() WHERE id = ?");
             $stmt_up->bind_param("issssi", $userId, $kondisi_temuan, $catatan, $final_foto, $status_review, $id_pengecekan);
@@ -711,19 +716,44 @@ if ($action === 'submit_pengecekan') {
 }
 
 // ============================================================
-// ACTION: riwayat  (VERSI LENGKAP - filter kondisi + summary count)
+// ACTION: riwayat  (DI-SCOPE KE PERIODE AKTIF)
+// List, search, filter kondisi, pagination, DAN summary semuanya
+// hanya menghitung/menampilkan data dari periode_pengecekan yang
+// sedang 'aktif'.
 // ============================================================
 if ($action === 'riwayat') {
     $page = max(1, intval($_GET['page'] ?? 1));
     $limit = max(1, min(100, intval($_GET['limit'] ?? 20)));
     $offset = ($page - 1) * $limit;
     $search = trim($_GET['search'] ?? '');
-    // kondisi: '' (semua), 'baik', atau 'bermasalah' (Rusak/Hilang)
+    // kondisi: '' (semua), 'baik', 'rusak', atau 'hilang'
     $kondisi = trim($_GET['kondisi'] ?? '');
 
-    $where_extra = "";
-    $params = [$userId];
-    $types = "i";
+    // Cari periode aktif dulu. Kalau tidak ada, langsung balikin kosong.
+    $res_periode = $conn->query("SELECT id FROM periode_pengecekan WHERE status = 'aktif' ORDER BY id DESC LIMIT 1");
+    if (!$res_periode || $res_periode->num_rows === 0) {
+        jsonResponse([
+            'success' => true,
+            'data' => [],
+            'pagination' => [
+                'total' => 0,
+                'page' => 1,
+                'limit' => $limit,
+                'total_pages' => 0,
+            ],
+            'summary' => [
+                'total' => 0,
+                'total_baik' => 0,
+                'total_rusak' => 0,
+                'total_hilang' => 0,
+            ],
+        ]);
+    }
+    $id_periode_aktif = (int)$res_periode->fetch_assoc()['id'];
+
+    $where_extra = " AND pb.id_periode = ?";
+    $params = [$userId, $id_periode_aktif];
+    $types = "ii";
 
     if ($search !== '') {
         $where_extra .= " AND (b.nama_barang LIKE ? OR k.nama_kategori LIKE ?)";
@@ -736,20 +766,23 @@ if ($action === 'riwayat') {
     // Filter kondisi dilakukan di query (server-side), bukan di Flutter
     if ($kondisi === 'baik') {
         $where_extra .= " AND pb.kondisi_temuan = 'Baik'";
-    } elseif ($kondisi === 'bermasalah') {
-        $where_extra .= " AND pb.kondisi_temuan != 'Baik'";
+    } elseif ($kondisi === 'rusak') {
+        $where_extra .= " AND pb.kondisi_temuan = 'Rusak'";
+    } elseif ($kondisi === 'hilang') {
+        $where_extra .= " AND pb.kondisi_temuan = 'Hilang'";
     }
 
     // ------------------------------------------------------------
-    // Summary counts: dihitung dari SEMUA data yang match search
-    // (tidak terpengaruh filter kondisi, supaya angka card ringkasan
-    // tetap stabil walau chip filter lagi dipilih yang mana)
+    // Summary counts: dihitung dari SEMUA data periode aktif yang
+    // match search (tidak terpengaruh filter kondisi, supaya angka
+    // card ringkasan tetap stabil walau chip filter lagi dipilih
+    // yang mana).
     // ------------------------------------------------------------
-    $summary_where = "";
-    $summary_params = [$userId];
-    $summary_types = "i";
+    $summary_where = " AND pb.id_periode = ?";
+    $summary_params = [$userId, $id_periode_aktif];
+    $summary_types = "ii";
     if ($search !== '') {
-        $summary_where = " AND (b.nama_barang LIKE ? OR k.nama_kategori LIKE ?)";
+        $summary_where .= " AND (b.nama_barang LIKE ? OR k.nama_kategori LIKE ?)";
         $search_like = "%$search%";
         $summary_params[] = $search_like;
         $summary_params[] = $search_like;
@@ -759,7 +792,8 @@ if ($action === 'riwayat') {
     $summary_sql = "SELECT
                         COUNT(*) as total,
                         SUM(CASE WHEN pb.kondisi_temuan = 'Baik' THEN 1 ELSE 0 END) as total_baik,
-                        SUM(CASE WHEN pb.kondisi_temuan != 'Baik' THEN 1 ELSE 0 END) as total_bermasalah
+                        SUM(CASE WHEN pb.kondisi_temuan = 'Rusak' THEN 1 ELSE 0 END) as total_rusak,
+                        SUM(CASE WHEN pb.kondisi_temuan = 'Hilang' THEN 1 ELSE 0 END) as total_hilang
                      FROM pengecekan_barang pb
                      JOIN barang b ON pb.id_barang = b.id
                      LEFT JOIN kategori k ON b.id_kategori = k.id
@@ -772,10 +806,12 @@ if ($action === 'riwayat') {
 
     $total = (int)$summary_row['total'];
     $total_baik = (int)$summary_row['total_baik'];
-    $total_bermasalah = (int)$summary_row['total_bermasalah'];
+    $total_rusak = (int)$summary_row['total_rusak'];
+    $total_hilang = (int)$summary_row['total_hilang'];
 
     // ------------------------------------------------------------
-    // Fetch data (dengan filter kondisi + pagination)
+    // Fetch data (dengan filter kondisi + pagination), di-scope ke
+    // periode aktif lewat $where_extra di atas.
     // ------------------------------------------------------------
     $sql = "SELECT pb.*, b.nama_barang, b.foto as foto_barang, m.nama_merk, k.nama_kategori,
                    u.nama_unit, r.nama_ruang, pe.nama_periode, pe.tahun,
@@ -842,19 +878,22 @@ if ($action === 'riwayat') {
             'limit' => $limit,
             'total_pages' => ceil($total_filtered / $limit),
         ],
-        // Summary selalu dari total keseluruhan (tidak terpengaruh filter kondisi)
+        // Summary dari total periode aktif (tidak terpengaruh filter kondisi)
         'summary' => [
             'total' => $total,
             'total_baik' => $total_baik,
-            'total_bermasalah' => $total_bermasalah,
+            'total_rusak' => $total_rusak,
+            'total_hilang' => $total_hilang,
         ],
     ]);
 }
 
 // ============================================================
-// ACTION: riwayat_kalender
-// Ambil SEMUA riwayat pengecekan petugas ini untuk satu bulan+tahun
-// tertentu saja (dipakai oleh popup kalender).
+// ACTION: riwayat_kalender  (DI-SCOPE KE PERIODE AKTIF)
+// Ambil riwayat pengecekan petugas ini untuk satu bulan+tahun
+// tertentu (dipakai oleh popup kalender), dibatasi hanya data dari
+// periode_pengecekan yang sedang 'aktif' — konsisten dengan action
+// 'riwayat'. Kalau tidak ada periode aktif, langsung balikin kosong.
 // ============================================================
 if ($action === 'riwayat_kalender') {
     $bulan = intval($_GET['bulan'] ?? 0);
@@ -866,6 +905,17 @@ if ($action === 'riwayat_kalender') {
     if ($tahun < 2000 || $tahun > 2100) {
         jsonError('Parameter tahun tidak valid.');
     }
+
+    $res_periode = $conn->query("SELECT id FROM periode_pengecekan WHERE status = 'aktif' ORDER BY id DESC LIMIT 1");
+    if (!$res_periode || $res_periode->num_rows === 0) {
+        jsonResponse([
+            'success' => true,
+            'data' => [],
+            'bulan' => $bulan,
+            'tahun' => $tahun,
+        ]);
+    }
+    $id_periode_aktif = (int)$res_periode->fetch_assoc()['id'];
 
     $sql = "SELECT pb.*, b.nama_barang, b.foto as foto_barang, m.nama_merk, k.nama_kategori,
                    u.nama_unit, r.nama_ruang, pe.nama_periode, pe.tahun,
@@ -879,12 +929,13 @@ if ($action === 'riwayat_kalender') {
             JOIN periode_pengecekan pe ON pb.id_periode = pe.id
             LEFT JOIN users rv ON pb.id_reviewer = rv.id
             WHERE pb.id_petugas = ?
+              AND pb.id_periode = ?
               AND MONTH(pb.tgl_pengecekan) = ?
               AND YEAR(pb.tgl_pengecekan) = ?
             ORDER BY pb.tgl_pengecekan ASC";
 
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("iii", $userId, $bulan, $tahun);
+    $stmt->bind_param("iiii", $userId, $id_periode_aktif, $bulan, $tahun);
     $stmt->execute();
     $res = $stmt->get_result();
 
