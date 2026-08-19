@@ -3,6 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import 'main_screen.dart';
 
+const _deepPurple = Color(0xFF3B0764);
+const _midPurple = Color(0xFF7C3AED);
+const _softPurple = Color(0xFFB794F6);
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -25,12 +29,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 700),
     );
     _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOut),
     );
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
     );
     _animController.forward();
@@ -81,21 +85,57 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
   }
 
+  InputDecoration _fieldDecoration({required String hint, required IconData icon, Widget? suffixIcon}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.6), fontSize: 14),
+      prefixIcon: Icon(icon, color: const Color(0xFF3B0764), size: 20),
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: Colors.white.withValues(alpha: 0.14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: const Color(0xFF3B0764).withValues(alpha: 0.3)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color:  const Color(0xFF3B0764).withValues(alpha: 0.3)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: const Color(0xFF3B0764), width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFFFCA5A5)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFFFCA5A5), width: 1.6),
+      ),
+      errorStyle: GoogleFonts.inter(color: const Color(0xFFFDE68A), fontSize: 11.5),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFF8FAFC), Color(0xFFEEF2FF), Color(0xFFF8FAFC)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [_deepPurple, _midPurple, _softPurple, Colors.white],
+            stops: [0.0, 0.38, 0.72, 1.0],
           ),
         ),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: FadeTransition(
                 opacity: _fadeAnim,
                 child: SlideTransition(
@@ -103,167 +143,124 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Logo
+                      const SizedBox(height: 16),
+                      // Logo lingkaran dengan ring
                       Container(
-                        width: 90,
-                        height: 90,
+                        width: 130,
+                        height: 130,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF4F46E5), Color(0xFF312E81)],
-                          ),
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF4F46E5).withValues(alpha: 0.3),
-                              blurRadius: 24,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.4),
                         ),
-                        child: const Icon(
-                          Icons.inventory_2_rounded,
-                          color: Colors.white,
-                          size: 44,
+                        child: Center(
+                          child: Container(
+                            width: 92,
+                            height: 92,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/icon/icon2.png',
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => const Icon(
+                                  Icons.inventory_2_rounded,
+                                  color: _midPurple,
+                                  size: 40,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 22),
                       Text(
                         'Sistem Inventaris',
                         style: GoogleFonts.inter(
-                          fontSize: 24,
+                          fontSize: 26,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF111827),
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Masuk ke akun petugas Anda',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: const Color(0xFF6B7280),
-                        ),
-                      ),
-                      const SizedBox(height: 36),
-
-                      // Login Card
-                      Container(
-                        padding: const EdgeInsets.all(28),
-                        decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(22),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.06),
-                              blurRadius: 40,
-                              offset: const Offset(0, 16),
-                            ),
-                          ],
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Kelola dan pantau aset inventaris Anda\ndengan mudah dan cepat.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          fontSize: 13.5,
+                          color: Colors.white.withValues(alpha: 0.8),
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // Kartu login (glass card)
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
                         ),
                         child: Form(
                           key: _formKey,
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Username
-                              Text(
-                                'Username',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF4B5563),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
                               TextFormField(
                                 controller: _usernameController,
-                                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827)),
-                                decoration: InputDecoration(
-                                  hintText: 'Masukkan username',
-                                  hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
-                                  prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF9CA3AF), size: 20),
-                                  filled: true,
-                                  fillColor: const Color(0xFFF8FAFC),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                ),
+                                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF3B0764)),
+                                cursorColor: Colors.white,
+                                decoration: _fieldDecoration(hint: 'Username', icon: Icons.person_outline),
                                 validator: (v) => v == null || v.trim().isEmpty ? 'Username harus diisi' : null,
                                 textInputAction: TextInputAction.next,
                               ),
-                              const SizedBox(height: 18),
-
-                              // Password
-                              Text(
-                                'Password',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF4B5563),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 14),
                               TextFormField(
                                 controller: _passwordController,
                                 obscureText: _obscurePassword,
-                                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF111827)),
-                                decoration: InputDecoration(
-                                  hintText: 'Masukkan password',
-                                  hintStyle: GoogleFonts.inter(color: const Color(0xFF9CA3AF)),
-                                  prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF), size: 20),
+                                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF3B0764)),
+                                cursorColor: Colors.white,
+                                decoration: _fieldDecoration(
+                                  hint: 'Password',
+                                  icon: Icons.lock_outline,
                                   suffixIcon: IconButton(
                                     icon: Icon(
                                       _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                                      color: const Color(0xFF6B7280),
+                                      color: Colors.white.withValues(alpha: 0.8),
                                       size: 20,
                                     ),
                                     onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                                   ),
-                                  filled: true,
-                                  fillColor: const Color(0xFFF8FAFC),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                    borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                 ),
                                 validator: (v) => v == null || v.isEmpty ? 'Password harus diisi' : null,
                                 onFieldSubmitted: (_) => _login(),
                               ),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 20),
 
-                              // Login Button
+                              // Tombol Masuk
                               SizedBox(
                                 width: double.infinity,
                                 height: 52,
                                 child: ElevatedButton(
                                   onPressed: _isLoading ? null : _login,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF4F46E5),
-                                    foregroundColor: Colors.white,
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: _deepPurple,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(14),
                                     ),
                                     elevation: 0,
-                                    disabledBackgroundColor: const Color(0xFF4F46E5).withValues(alpha: 0.6),
+                                    disabledBackgroundColor: Colors.white.withValues(alpha: 0.7),
                                   ),
                                   child: _isLoading
                                       ? const SizedBox(
@@ -271,21 +268,26 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                           height: 22,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2.5,
-                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                            valueColor: AlwaysStoppedAnimation<Color>(_midPurple),
                                           ),
                                         )
                                       : Row(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
-                                            const Icon(Icons.login_rounded, size: 20),
-                                            const SizedBox(width: 8),
                                             Text(
                                               'Masuk',
                                               style: GoogleFonts.inter(
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w700,
+                                                fontSize: 15.5,
+                                                fontWeight: FontWeight.w800,
                                                 letterSpacing: 0.3,
+                                                color: _deepPurple,
                                               ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Icon(
+                                              Icons.login_rounded,
+                                              color: _deepPurple,
+                                              size: 20,
                                             ),
                                           ],
                                         ),
@@ -295,20 +297,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
+
+                      const SizedBox(height: 48),
                       Text(
                         '© 2026 Sistem Inventaris Barang',
                         style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: const Color(0xFF9CA3AF),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Versi 1.0.0',
-                        style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: const Color(0xFFD1D5DB),
+                          color: const Color(0xFF3B0764),
                         ),
                       ),
                     ],
