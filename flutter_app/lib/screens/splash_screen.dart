@@ -20,9 +20,9 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Splash otomatis pindah ke LoginScreen setelah 12 detik.
+    // Splash otomatis pindah ke LoginScreen setelah 5 detik.
     // Slider "Geser untuk Mulai" tetap ada buat yang mau skip lebih cepat.
-    _autoNavigateTimer = Timer(const Duration(milliseconds: 12000), _goToLogin);
+    _autoNavigateTimer = Timer(const Duration(milliseconds: 5000), _goToLogin);
   }
 
   @override
@@ -49,7 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
           // Background asset (illustrated cube)
           Positioned.fill(
             child: Image.asset(
-              'assets/icon/back1.png',
+              'assets/icon/back2.png',
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) => const ColoredBox(color: _nearBlack),
             ),
@@ -92,13 +92,20 @@ class _SplashScreenState extends State<SplashScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         alignment: Alignment.center,
-                        child: RichText(
-                          text: TextSpan(
-                            style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800),
-                            children: const [
-                              TextSpan(text: 'i', style: TextStyle(color: _nearBlack)),
-                              TextSpan(text: 'k', style: TextStyle(color: _midPurple)),
-                            ],
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.asset(
+                            'assets/icon/icon2.png',
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => RichText(
+                              text: TextSpan(
+                                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800),
+                                children: const [
+                                  TextSpan(text: 'i', style: TextStyle(color: _nearBlack)),
+                                  TextSpan(text: 'k', style: TextStyle(color: _midPurple)),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -107,7 +114,7 @@ class _SplashScreenState extends State<SplashScreen> {
                         'InventarisKu',
                         style: GoogleFonts.inter(
                           color: Colors.white,
-                          fontSize: 20,
+                          fontSize: 16,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.1,
                         ),
@@ -115,14 +122,14 @@ class _SplashScreenState extends State<SplashScreen> {
                     ],
                   ),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 25),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Kelola Semua\nAset dalam\nGenggaman',
                       style: GoogleFonts.inter(
                         color: Colors.white,
-                        fontSize: 38,
+                        fontSize: 29,
                         height: 1.2,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5,
@@ -133,7 +140,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   // Spacer atas lebih besar dari spacer bawah — jadi pill
                   // "128 Item terpantau" ketarik turun, lebih renggang dari
                   // kubus dan lebih deket ke slider di bawahnya.
-                  const Expanded(flex: 5, child: SizedBox()),
+                  const Expanded(flex: 6, child: SizedBox()),
 
                   _StatPill(label: '128 Item terpantau'),
 
@@ -161,7 +168,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 80),
+                  const SizedBox(height: 70),
                 ],
               ),
             ),

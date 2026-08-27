@@ -3,9 +3,15 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import 'main_screen.dart';
 
-const _deepPurple = Color(0xFF3B0764);
-const _midPurple = Color(0xFF7C3AED);
-const _softPurple = Color(0xFFB794F6);
+const _primary = Color(0xFF4F46E5);
+const _primaryDark = Color(0xFF312E81);
+const _primaryLight = Color(0xFFEEF2FF);
+const _green = Color(0xFF10B981);
+const _greenLight = Color(0xFFECFDF5);
+const _blue = Color(0xFF2563EB);
+const _textDark = Color(0xFF111827);
+const _textGrey = Color(0xFF6B7280);
+const _textMuted = Color(0xFF9CA3AF);
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -89,21 +95,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     return InputDecoration(
       hintText: hint,
       hintStyle: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.6), fontSize: 14),
-      prefixIcon: Icon(icon, color: const Color(0xFF3B0764), size: 20),
+      prefixIcon: Icon(icon, color: _primaryDark, size: 20),
       suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.white.withValues(alpha: 0.14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: const Color(0xFF3B0764).withValues(alpha: 0.3)),
+        borderSide: BorderSide(color: _primaryDark.withValues(alpha: 0.3)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color:  const Color(0xFF3B0764).withValues(alpha: 0.3)),
+        borderSide: BorderSide(color: _primaryDark.withValues(alpha: 0.3)),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: const Color(0xFF3B0764), width: 1.6),
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(14)),
+        borderSide: BorderSide(color: _primaryDark, width: 1.6),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -128,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [_deepPurple, _midPurple, _softPurple, Colors.white],
+            colors: [_primaryDark, _primary, _primaryLight, Colors.white],
             stops: [0.0, 0.38, 0.72, 1.0],
           ),
         ),
@@ -174,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) => const Icon(
                                   Icons.inventory_2_rounded,
-                                  color: _midPurple,
+                                  color: _primary,
                                   size: 40,
                                 ),
                               ),
@@ -210,7 +216,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                          border: Border.all(color: _primaryDark.withValues(alpha: 0.18)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _primaryDark.withValues(alpha: 0.18),
+                              blurRadius: 24,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
                         ),
                         child: Form(
                           key: _formKey,
@@ -218,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                             children: [
                               TextFormField(
                                 controller: _usernameController,
-                                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF3B0764)),
+                                style: GoogleFonts.inter(fontSize: 14, color: _primaryDark),
                                 cursorColor: Colors.white,
                                 decoration: _fieldDecoration(hint: 'Username', icon: Icons.person_outline),
                                 validator: (v) => v == null || v.trim().isEmpty ? 'Username harus diisi' : null,
@@ -228,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                               TextFormField(
                                 controller: _passwordController,
                                 obscureText: _obscurePassword,
-                                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF3B0764)),
+                                style: GoogleFonts.inter(fontSize: 14, color: _primaryDark),
                                 cursorColor: Colors.white,
                                 decoration: _fieldDecoration(
                                   hint: 'Password',
@@ -255,7 +268,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   onPressed: _isLoading ? null : _login,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.white,
-                                    foregroundColor: _deepPurple,
+                                    foregroundColor: _primaryDark,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(14),
                                     ),
@@ -268,7 +281,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                           height: 22,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2.5,
-                                            valueColor: AlwaysStoppedAnimation<Color>(_midPurple),
+                                            valueColor: AlwaysStoppedAnimation<Color>(_primary),
                                           ),
                                         )
                                       : Row(
@@ -280,13 +293,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                                 fontSize: 15.5,
                                                 fontWeight: FontWeight.w800,
                                                 letterSpacing: 0.3,
-                                                color: _deepPurple,
+                                                color: _primaryDark,
                                               ),
                                             ),
                                             const SizedBox(width: 8),
                                             const Icon(
                                               Icons.login_rounded,
-                                              color: _deepPurple,
+                                              color: _primaryDark,
                                               size: 20,
                                             ),
                                           ],
@@ -303,7 +316,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         '© 2026 Sistem Inventaris Barang',
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: const Color(0xFF3B0764),
+                          color: _primaryDark,
                         ),
                       ),
                     ],
