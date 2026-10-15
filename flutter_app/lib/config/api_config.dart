@@ -1,22 +1,7 @@
-import 'package:flutter/foundation.dart';
-
 class ApiConfig {
-  /// Base URL secara otomatis menyesuaikan platform:
-  /// - Web / Windows Desktop / Local Browser -> http://localhost/inventaris
-  /// - Android Emulator -> http://10.0.2.2/inventaris
-  /// - HP Android Fisik -> Ganti dengan IP komputer Anda (misal: http://192.168.1.10/inventaris)
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost/inventaris-plnnp';
-    }
-    // Untuk Android Emulator default 10.0.2.2, namun jika dijalankan di Windows Desktop pake localhost
-    if (defaultTargetPlatform == TargetPlatform.windows || 
-        defaultTargetPlatform == TargetPlatform.macOS || 
-        defaultTargetPlatform == TargetPlatform.linux) {
-      return 'http://localhost/inventaris-plnnp';
-    }
-    return 'http://10.0.2.2/inventaris';
-  }
+  /// Base URL aplikasi (server produksi).
+  /// Semua platform (Web, Desktop, Android) mengarah ke domain yang sama.
+  static String get baseUrl => 'https://inventaris.umumcsr.com';
   
   static String get apiUrl => '$baseUrl/api/api_petugas.php';
   
